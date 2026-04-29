@@ -184,10 +184,10 @@ text-transform: uppercase;
 /* SEARCH BAR */
 .search-container {
 padding: 12px 16px 8px;
-position: sticky;
-top: 0;
+position: relative;
 z-index: 50;
 background: var(–black-deep);
+overflow: visible !important;
 }
 
 .search-wrap {
@@ -1929,14 +1929,24 @@ overflow: visible;
 
 /* LIGHT THEME */
 body.light-theme {
-–black-deep: #F5F5F5;
-–black-carbon: #EBEBEB;
-–black-surface: #E0E0E0;
+–black-deep: #F0F0F0;
+–black-carbon: #E2E2E2;
+–black-surface: #D8D8D8;
 –black-card: #FFFFFF;
 –white-soft: #111111;
 –gray-silver: #555555;
-–gray-muted: #CCCCCC;
+–gray-muted: #BBBBBB;
 }
+
+body.light-theme .master-board {
+background: linear-gradient(135deg, #f0f0f0 0%, #ffe5e5 100%);
+}
+
+body.light-theme .search-results { background: #ffffff; }
+body.light-theme .search-result-item { background: #ffffff; }
+body.light-theme .search-result-item:hover { background: #f5f5f5; }
+body.light-theme .board-day-num { color: var(–red-ritual); }
+body.light-theme .result-card { background: linear-gradient(135deg, #f8f8f8, #fff0f0); }
 
 /* PERFORMANCE MODE */
 body.perf-mode * {
@@ -2268,6 +2278,13 @@ text-transform: uppercase;
 
     <div class="settings-section">
       <div class="settings-section-title">SYSTEM</div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-row-label">RESET THEME</div>
+          <div class="settings-row-sub">Force back to dark mode</div>
+        </div>
+        <button class="analyze-btn" style="width:auto;padding:8px 16px;font-size:12px;" onclick="setTheme('dark');setSetting('bgColor','#080808');document.documentElement.style.setProperty('--black-deep','#080808');initColorPresets();">RESET</button>
+      </div>
       <div class="settings-row">
         <div>
           <div class="settings-row-label">CLEAR ALL CACHE</div>
@@ -3799,6 +3816,22 @@ async function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ---- PINCH ZOOM BLOCKER (iOS Safari ignores meta user-scalable=no) ----
+document.addEventListener('touchstart', function(e) {
+  if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });
+
+let lastTouchEnd = 0;
+document.addEventListener('touchend', function(e) {
+  const now = Date.now();
+  if (now - lastTouchEnd <= 300) e.preventDefault(); // block double-tap zoom
+  lastTouchEnd = now;
+}, { passive: false });
+
+document.addEventListener('gesturestart', function(e) {
+  e.preventDefault();
+}, { passive: false });
 </script>
 
 </body>

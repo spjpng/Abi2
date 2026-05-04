@@ -90,7 +90,7 @@ html, body {
   z-index: 100;
   background: var(--black-carbon);
   border-top: 1px solid var(--gray-muted);
-  padding-bottom: var(--safe-bottom);
+  padding-bottom: max(8px, calc(var(--safe-bottom) - 16px));
 }
 
 .header-inner {

@@ -557,7 +557,8 @@ html, body {
 
 .player-name {
   font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 900;
+  font-weight: 500 !important;
+  font-style: normal !important;
   font-size: 20px;
   color: var(--white-soft);
   line-height: 1.1;
@@ -966,7 +967,8 @@ html, body {
 
 .player-row-name strong {
   font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 700;
+  font-weight: 500 !important;
+  font-style: normal !important;
   font-size: 16px;
   color: var(--white-soft);
   display: block;
@@ -1126,7 +1128,8 @@ html, body {
 
 .fav-name {
   font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 700;
+  font-weight: 500 !important;
+  font-style: normal !important;
   font-size: 18px;
   color: var(--white-soft);
   white-space: nowrap;
@@ -1266,7 +1269,7 @@ html, body {
 }
 
 .color-preset.active::after {
-  content: '✓';
+  content: '';
   position: absolute;
   inset: 0;
   display: flex;
@@ -2942,7 +2945,21 @@ const TRIANGULAR_SET = new Set([1,3,6,10,15,21,28,36,45,55,66,78,91,105,120,136,
 const ROUND_NUMBERS = new Set([100,200,300,400,500,600,700,800,900,1000,1500,2000,2500,3000,4000,5000,10000,20000,30000]);
 const MIRROR_NUMBERS = new Set([11,22,33,44,55,66,77,88,99,101,111,121,131,141,151,161,171,181,191,202,212,222,232,242,252,262,272,282,292,303,313,323,333,343,353,363,373,383,393,404,414,424,434,444,454,464,474,484,494,505,515,525,535,545,555,1001,1111,2002,2222,3003,3333]);
 
-function calcSacredAlignment(athlete, dm) {
+function calcSacredAlignment(athlete) {
+  const dm = calcDateMath(new Date()); // always recalculate fresh, never use passed-in dm
+  const today = new Date();
+
+  const jerseyNum = parseInt(athlete.jersey);
+  console.log('ALIGNMENT CHECK', {
+    player: athlete.name,
+    jersey: athlete.jersey,
+    jerseyReduction: isNaN(jerseyNum) ? null : reduceToSingle(jerseyNum),
+    fullReduction: dm.fullReduction,
+    basicReduction: dm.basicReduction,
+    dayOfYear: dm.dayOfYear,
+    match: !isNaN(jerseyNum) && reduceToSingle(jerseyNum) === dm.fullReduction
+  });
+
   const results = {
     jersey: { hit: false, detail: '' },
     birthday: { hit: false, detail: '' },
@@ -2954,25 +2971,31 @@ function calcSacredAlignment(athlete, dm) {
     checklist: []
   };
 
-  const jersey = parseInt(athlete.jersey);
-
   // 1. JERSEY ALIGNMENT
-  if (!isNaN(jersey)) {
-    const jReduction = reduceToSingle(jersey);
-    const onLadder = dm.ladder.includes(jersey);
-    const isSacred = SACRED_NUMBERS.has(jersey) || SACRED_GAPS.has(jersey);
-    if (jReduction === dm.basicReduction || onLadder || isSacred) {
+  if (!isNaN(jerseyNum)) {
+    const jerseyReduction = reduceToSingle(jerseyNum);
+    const fullLadder = buildLadder(dm.fullReduction);
+    const basicLadder = buildLadder(dm.basicReduction);
+    const isSacred = SACRED_NUMBERS.has(jerseyNum) || SACRED_GAPS.has(jerseyNum);
+    const jerseyHit = (
+      jerseyReduction === dm.fullReduction ||
+      jerseyReduction === dm.basicReduction ||
+      fullLadder.includes(jerseyNum) ||
+      basicLadder.includes(jerseyNum) ||
+      isSacred
+    );
+    if (jerseyHit) {
       results.jersey.hit = true;
-      results.jersey.detail = `#${jersey} → ${jReduction} ${jReduction === dm.basicReduction ? '= TODAY' : ''} ${onLadder ? '| ON LADDER' : ''} ${isSacred ? '| SACRED' : ''}`.trim();
-      results.checklist.push(`✅ JERSEY #${jersey} → ${jReduction} → MATCHES TODAY (${dm.basicReduction} DAY)`);
+      results.jersey.detail = `#${jerseyNum} → ${jerseyReduction} ${jerseyReduction === dm.fullReduction ? '= FULL' : ''} ${jerseyReduction === dm.basicReduction ? '= BASIC' : ''} ${isSacred ? '| SACRED' : ''}`.trim();
+      results.checklist.push(`HIT: JERSEY #${jerseyNum} → ${jerseyReduction} → MATCHES TODAY (${dm.fullReduction}/${dm.basicReduction})`);
       results.score += 1;
     } else {
-      results.checklist.push(`❌ JERSEY #${jersey} → ${jReduction} → NO MATCH (TODAY = ${dm.basicReduction})`);
+      results.checklist.push(`MISS: JERSEY #${jerseyNum} → ${jerseyReduction} → NO MATCH (TODAY = ${dm.fullReduction}/${dm.basicReduction})`);
     }
   }
 
   // 2. BIRTHDAY GAP ALIGNMENT
-  const bg = athlete.birthday ? calcBirthdayGap(athlete.birthday, new Date()) : null;
+  const bg = athlete.birthday ? calcBirthdayGap(athlete.birthday, today) : null;
   if (bg) {
     const sinceSacred = SACRED_GAPS.has(bg.daysSince);
     const untilSacred = SACRED_GAPS.has(bg.daysUntil);
@@ -2982,10 +3005,10 @@ function calcSacredAlignment(athlete, dm) {
     if (bdayHit) {
       results.birthday.hit = true;
       results.birthday.detail = `${bg.daysSince} DAYS SINCE | ${bg.daysUntil} DAYS UNTIL ${sinceSacred || untilSacred ? '| SACRED GAP' : ''}`;
-      results.checklist.push(`✅ BIRTHDAY GAP: ${bg.daysSince} SINCE / ${bg.daysUntil} UNTIL ${sinceSacred ? '| SACRED' : ''}`);
+      results.checklist.push(`HIT: BIRTHDAY GAP: ${bg.daysSince} SINCE / ${bg.daysUntil} UNTIL ${sinceSacred ? '| SACRED' : ''}`);
       results.score += 1;
     } else {
-      results.checklist.push(`❌ BIRTHDAY GAP: ${bg.daysSince} SINCE / ${bg.daysUntil} UNTIL`);
+      results.checklist.push(`MISS: BIRTHDAY GAP: ${bg.daysSince} SINCE / ${bg.daysUntil} UNTIL`);
     }
   }
 
@@ -2998,20 +3021,20 @@ function calcSacredAlignment(athlete, dm) {
   if (gemMatchesDay || gemIsSacred) {
     results.reduction.hit = true;
     results.reduction.detail = `${athlete.name.toUpperCase()} = ${primaryGem} → ${gemReduction} ${gemMatchesDay ? '= TODAY' : ''} ${gemIsSacred ? '| SACRED' : ''}`;
-    results.checklist.push(`✅ GEMATRIA: ${primaryGem} → ${gemReduction} = TODAY'S NUMBER (${dm.basicReduction})`);
+    results.checklist.push(`HIT: GEMATRIA: ${primaryGem} → ${gemReduction} = TODAY'S NUMBER (${dm.basicReduction})`);
     results.score += 1;
   } else {
-    results.checklist.push(`❌ GEMATRIA: ${primaryGem} → ${gemReduction} → NO MATCH`);
+    results.checklist.push(`MISS: GEMATRIA: ${primaryGem} → ${gemReduction} → NO MATCH`);
   }
 
   // 4. MATH CONNECTION BONUS — all three reduce to same number
-  if (!isNaN(jersey) && bg) {
-    const jRed = reduceToSingle(jersey);
+  if (!isNaN(jerseyNum) && bg) {
+    const jRed = reduceToSingle(jerseyNum);
     const bRed = reduceToSingle(bg.daysSince);
     const gRed = reduceToSingle(primaryGem);
     if (jRed === bRed && bRed === gRed && gRed === dm.basicReduction) {
       results.gematria.hit = true;
-      results.checklist.push(`⚡ MAXIMUM CODED: JERSEY + BIRTHDAY + GEMATRIA ALL = ${dm.basicReduction}`);
+      results.checklist.push(`MAX: MAXIMUM CODED: JERSEY + BIRTHDAY + GEMATRIA ALL = ${dm.basicReduction}`);
       results.score += 1;
     }
   }
@@ -3302,7 +3325,8 @@ async function renderLiveGames() {
         if (!att) return;
         const attEl = document.getElementById(`attendance-${gameId}`);
         if (!attEl) return;
-        attEl.innerHTML = `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:${att.matchesDay ? 'var(--red-ritual)' : att.isSacred ? 'var(--gold-accent)' : 'var(--gray-silver)'};">ATTENDANCE: ${att.display}${att.matchesDay ? ' ✅' : ''}</div>`;
+        const attColor = att.matchesDay ? 'var(--red-ritual)' : att.isSacred ? 'var(--gold-accent)' : 'var(--gray-silver)';
+        attEl.innerHTML = `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:${attColor};display:flex;align-items:center;gap:6px;">${att.matchesDay || att.isSacred ? `<span style="width:6px;height:6px;border-radius:50%;background:${attColor};display:inline-block;flex-shrink:0;"></span>` : ''}ATTENDANCE: ${att.display}</div>`;
       });
     })(game.id);
   });
@@ -3490,7 +3514,7 @@ async function renderPlayerContent(athlete, container) {
   const gem = calcGematria(athlete.name);
   const jd = decodeJersey(athlete.jersey);
 
-  const alignment = calcSacredAlignment(athlete, dm);
+  const alignment = calcSacredAlignment(athlete);
   const classLabelClass = alignment.score >= 3 ? 'label-red' : alignment.score >= 2 ? 'label-gold' : 'label-gray';
   const classification = alignment.classification;
 
@@ -3527,7 +3551,14 @@ async function renderPlayerContent(athlete, container) {
     <div style="padding:14px;border-bottom:1px solid var(--gray-muted);">
       <div class="decode-title">SACRED ALIGNMENT — ${alignment.score}/4</div>
       <div style="margin-bottom:10px;">
-        ${alignment.checklist.map(line => `<div style="font-family:'Share Tech Mono',monospace;font-size:12px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);color:${line.startsWith('✅') ? 'var(--red-ritual)' : line.startsWith('⚡') ? 'var(--gold-accent)' : 'var(--gray-silver)'};">${line}</div>`).join('')}
+        ${alignment.checklist.map(line => {
+          const isHit = line.startsWith('HIT:');
+          const isMax = line.startsWith('MAX:');
+          const dotColor = isHit ? 'var(--red-ritual)' : isMax ? 'var(--gold-accent)' : 'var(--gray-muted)';
+          const textColor = isHit ? 'var(--red-ritual)' : isMax ? 'var(--gold-accent)' : 'var(--gray-silver)';
+          const text = line.replace(/^(HIT:|MISS:|MAX:)\s*/, '');
+          return `<div style="font-family:'Share Tech Mono',monospace;font-size:12px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);color:${textColor};display:flex;align-items:center;gap:8px;"><span style="width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0;display:inline-block;"></span>${text}</div>`;
+        }).join('')}
       </div>
       <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:18px;letter-spacing:3px;color:${alignment.score >= 3 ? 'var(--red-ritual)' : alignment.score >= 2 ? 'var(--gold-accent)' : 'var(--gray-silver)'};">${alignment.classification}</div>
     </div>
@@ -3614,7 +3645,7 @@ async function renderPlayerContent(athlete, container) {
     }
     milestoneEl.innerHTML = milestones.map(m => `
       <div style="background:rgba(201,168,76,0.1);border:1px solid var(--gold-accent);border-left:3px solid var(--gold-accent);border-radius:6px;padding:12px;margin-bottom:8px;">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:2px;color:var(--gold-accent);font-weight:700;margin-bottom:4px;">⚡ MILESTONE ALERT — ${m.stat}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:2px;color:var(--gold-accent);font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:6px;"><span style="width:6px;height:6px;border-radius:50%;background:var(--gold-accent);display:inline-block;flex-shrink:0;"></span>MILESTONE ALERT — ${m.stat}</div>
         <div style="font-family:'Share Tech Mono',monospace;font-size:13px;color:var(--white-soft);margin-bottom:6px;">${m.current} → NEEDS 1 MORE → ${m.next}</div>
         ${m.flags.map(f => `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:${f.includes('TODAY') || f.includes('SACRED') ? 'var(--red-ritual)' : 'var(--gray-silver)'};">${f}</div>`).join('')}
         ${m.twoAwayFlags.map(f => `<div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--gray-muted);">2 AWAY: ${f}</div>`).join('')}
@@ -3988,9 +4019,9 @@ async function runPropAnalysis() {
   const jd = decodeJersey(athlete.jersey);
 
   // Sacred alignment base
-  const alignment = calcSacredAlignment(athlete, dm);
+  const alignment = calcSacredAlignment(athlete);
   let ritualScore = alignment.score * 10;
-  let signals = [...alignment.checklist.filter(s => s.startsWith('✅') || s.startsWith('⚡'))];
+  let signals = [...alignment.checklist.filter(s => s.startsWith('HIT:') || s.startsWith('MAX:'))];
 
   // Prop line decode
   const lineInt = Math.floor(line);
@@ -3998,12 +4029,12 @@ async function runPropAnalysis() {
   const lineMatchesDay = lineReduction === dm.basicReduction;
   const lineMatchesJersey = !isNaN(parseInt(athlete.jersey)) && lineReduction === reduceToSingle(parseInt(athlete.jersey));
 
-  if (lineMatchesDay) { ritualScore += 10; signals.push(`✅ LINE ${line} → ${lineReduction} = TODAY'S NUMBER`); }
-  if (lineMatchesJersey) { ritualScore += 10; signals.push(`✅ LINE ${line} → ${lineReduction} = JERSEY REDUCTION`); }
-  if (SACRED_NUMBERS.has(lineInt)) { ritualScore += 5; signals.push(`⚡ LINE ${line} IS SACRED NUMBER`); }
-  if (TRIANGULAR_SET.has(lineInt)) { ritualScore += 5; signals.push(`⚡ LINE ${line} IS TRIANGULAR`); }
-  if (FIBONACCI_SET.has(lineInt)) { ritualScore += 5; signals.push(`⚡ LINE ${line} IS FIBONACCI`); }
-  if (SACRED_GAPS.has(lineInt)) { ritualScore -= 10; signals.push(`LINE ${line} IS SACRED — TRAP`); }
+  if (lineMatchesDay) { ritualScore += 10; signals.push(`HIT: LINE ${line} → ${lineReduction} = TODAY'S NUMBER`); }
+  if (lineMatchesJersey) { ritualScore += 10; signals.push(`HIT: LINE ${line} → ${lineReduction} = JERSEY REDUCTION`); }
+  if (SACRED_NUMBERS.has(lineInt)) { ritualScore += 5; signals.push(`MAX: LINE ${line} IS SACRED NUMBER`); }
+  if (TRIANGULAR_SET.has(lineInt)) { ritualScore += 5; signals.push(`MAX: LINE ${line} IS TRIANGULAR`); }
+  if (FIBONACCI_SET.has(lineInt)) { ritualScore += 5; signals.push(`MAX: LINE ${line} IS FIBONACCI`); }
+  if (SACRED_GAPS.has(lineInt)) { ritualScore -= 10; signals.push(`WARN: LINE ${line} IS SACRED — TRAP`); }
 
   // Determine side — FIX 3 thresholds
   let bestSide, sideClass, classification, risk;
@@ -4043,7 +4074,7 @@ async function runPropAnalysis() {
       </div>
       <div style="text-align:left;">
         <div class="card-label" style="margin-bottom:8px;">SIGNAL BREAKDOWN</div>
-        ${signals.map(s => `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gray-silver);padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);">${s}</div>`).join('')}
+        ${signals.map(s => { const isH=s.startsWith('HIT:'); const isM=s.startsWith('MAX:'); const isW=s.startsWith('WARN:'); const dc=isH?'var(--red-ritual)':isM?'var(--gold-accent)':isW?'var(--gray-silver)':'var(--gray-muted)'; const tc=isH?'var(--red-ritual)':isM?'var(--gold-accent)':'var(--gray-silver)'; const t=s.replace(/^(HIT:|MAX:|WARN:)\s*/,''); return `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:${tc};padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;gap:8px;"><span style="width:6px;height:6px;border-radius:50%;background:${dc};flex-shrink:0;display:inline-block;"></span>${t}</div>`; }).join('')}
       </div>
       <div style="margin-top:14px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.1);font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:14px;letter-spacing:2px;color:var(--red-ritual);">${classification}</div>
     </div>
@@ -4314,12 +4345,29 @@ async function renderMatchTab() {
 
   const today = new Date();
   const dm = calcDateMath(today);
-  const todayReduction = dm.basicReduction;
+  const todayReduction = dm.fullReduction;
 
   reductionEl.textContent = `REDUCTION: ${todayReduction}`;
 
-  // Jersey ladder display
-  ladderEl.innerHTML = `<div class="board-ladder-label">TODAY'S JERSEY LADDER</div><div class="board-ladder">${dm.ladder.map(n => `<div class="ladder-num">${n}</div>`).join('')}</div>`;
+  // Full date reduction breakdown display
+  const fullDigits = `${dm.y}${String(dm.m).padStart(2,'0')}${String(dm.d).padStart(2,'0')}`.split('').map(Number);
+  const fullSum1 = fullDigits.reduce((a,b) => a+b, 0);
+  const fullLadder = buildLadder(dm.fullReduction);
+  // Build reduction chain string (e.g. 19 → 10 → 1)
+  let chainNums = [fullSum1];
+  let cur = fullSum1;
+  while (cur > 9) { cur = String(cur).split('').reduce((a,b)=>a+parseInt(b),0); chainNums.push(cur); }
+  const chainStr = chainNums.join(' → ');
+
+  ladderEl.innerHTML = `
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:12px;margin-bottom:8px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:2px;color:var(--gray-silver);text-transform:uppercase;margin-bottom:6px;">FULL DATE REDUCTION</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--gray-silver);margin-bottom:4px;">${fullDigits.join(' + ')} = ${chainStr}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:16px;letter-spacing:2px;color:var(--red-ritual);margin-bottom:10px;">TODAY'S NUMBER: ${dm.fullReduction}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:2px;color:var(--gray-silver);text-transform:uppercase;margin-bottom:6px;">JERSEY LADDER</div>
+      <div class="board-ladder">${fullLadder.map(n => `<div class="ladder-num">${n}</div>`).join('')}</div>
+    </div>
+  `;
 
   const [athletes, scoreboard] = await Promise.all([getAthletes(), getScoreboard()]);
   const games = scoreboard?.events || [];
@@ -4355,7 +4403,7 @@ async function renderMatchTab() {
 
   // Score each with Sacred Alignment
   const scored = matched.map(a => {
-    const alignmentResult = calcSacredAlignment(a, dm);
+    const alignmentResult = calcSacredAlignment(a);
     return { ...a, score: alignmentResult.score, alignment: alignmentResult };
   }).sort((a, b) => b.score - a.score);
 
@@ -4370,7 +4418,7 @@ async function renderMatchTab() {
     const opp = teamOpponent[String(a.teamId)] || '?';
     const borderColor = a.alignment.score >= 3 ? 'var(--red-ritual)' : a.alignment.score >= 2 ? 'var(--gold-accent)' : 'var(--gray-muted)';
     const badgeClass = a.alignment.score >= 3 ? 'label-red' : a.alignment.score >= 2 ? 'label-gold' : 'label-gray';
-    const hits = a.alignment.checklist.filter(line => line.startsWith('✅') || line.startsWith('⚡'));
+    const hits = a.alignment.checklist.filter(line => line.startsWith('HIT:') || line.startsWith('MAX:'));
     const card = document.createElement('div');
     card.className = 'card';
     card.style.cursor = 'pointer';
@@ -4378,7 +4426,7 @@ async function renderMatchTab() {
     card.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div>
-          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:18px;color:var(--white-soft);">${a.name}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:500;font-style:normal;font-size:18px;color:var(--white-soft);">${a.name}</div>
           <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gray-silver);">${a.teamAbbr} vs ${opp} &bull; ${a.position}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
@@ -4386,7 +4434,7 @@ async function renderMatchTab() {
           <div class="label ${badgeClass}">${a.alignment.score}/4 — ${a.alignment.classification}</div>
         </div>
       </div>
-      ${hits.length > 0 ? `<div style="margin-top:8px;">${hits.map(h => `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04);color:${h.startsWith('⚡') ? 'var(--gold-accent)' : 'var(--red-ritual)'};">${h}</div>`).join('')}</div>` : ''}
+      ${hits.length > 0 ? `<div style="margin-top:8px;">${hits.map(h => { const isMax = h.startsWith('MAX:'); const dc = isMax ? 'var(--gold-accent)' : 'var(--red-ritual)'; const t = h.replace(/^(HIT:|MAX:)\s*/,''); return `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.04);color:${dc};display:flex;align-items:center;gap:8px;"><span style="width:6px;height:6px;border-radius:50%;background:${dc};flex-shrink:0;display:inline-block;"></span>${t}</div>`; }).join('')}</div>` : ''}
     `;
     card.onclick = () => openPlayerModal(a);
     container.appendChild(card);

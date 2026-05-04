@@ -60,7 +60,7 @@ html, body {
   overflow-y: auto;
   overflow-x: clip; /* clip not hidden — allows position:absolute children to escape */
   -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(70px + var(--safe-bottom));
+  padding-bottom: max(70px, calc(46px + var(--safe-bottom)));
   padding-top: calc(var(--safe-top) + 56px + 38px); /* header + ticker height */
   scroll-behavior: smooth;
 }

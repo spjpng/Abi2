@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#CC0000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -29,7 +29,7 @@
   --safe-right: env(safe-area-inset-right, 0px);
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
 html, body {
   background: var(--black-deep);
@@ -336,26 +336,18 @@ html, body {
 .ticker-scroll {
   display: flex;
   align-items: center;
-  height: 100%;
-  overflow: hidden;
-  pointer-events: none;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.ticker-track {
-  display: flex;
-  align-items: center;
-  height: 100%;
   gap: 24px;
   white-space: nowrap;
   padding: 0 16px;
-  animation: marquee 40s linear infinite;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  animation: marquee 30s linear infinite;
   will-change: transform;
 }
 
 @keyframes marquee {
-  0%   { transform: translateX(100vw); }
+  0%   { transform: translateX(100%); }
   100% { transform: translateX(-100%); }
 }
 
@@ -3214,51 +3206,76 @@ function renderMasterBoard() {
 }
 
 // ---- RENDER TICKER ----
-// FIX 4: Renders from cache every 5s; only re-fetches if cache > 60s old
-function buildTickerHTML(data) {
-  const games = data?.events || [];
+async function renderTicker() {
+  const data = await getScoreboard();
+  const scroll = document.getElementById('ticker-scroll');
+  scroll.innerHTML = '';
+
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  const todayGames = games.filter(g => g.date && g.date.startsWith(todayStr));
+  const todayGames = (data?.events || []).filter(g => g.date && g.date.startsWith(todayStr));
+
   if (todayGames.length === 0) {
-    return '<div class="ticker-no-games">NO GAMES TODAY — ARCHIVE MODE</div>';
+    scroll.innerHTML = `
+      <div class="ticker-item">
+        <div class="ticker-teams">ABI</div>
+        <div class="ticker-status" style="color:var(--gold-accent);">NO GAMES SCHEDULED TODAY</div>
+      </div>
+      <div class="ticker-divider"></div>
+      <div class="ticker-item">
+        <div class="ticker-status" style="color:var(--gray-silver);">CHECK ARCHIVE FOR PAST GAMES</div>
+      </div>
+    `;
+    return;
   }
-  let html = '';
+
   todayGames.forEach((game, idx) => {
     const comp = game.competitions?.[0];
     if (!comp) return;
     const [away, home] = comp.competitors || [];
     if (!away || !home) return;
-    const awayScore = parseInt(away.score || 0);
-    const homeScore = parseInt(home.score || 0);
-    const diff = Math.abs(awayScore - homeScore);
+
     const status = game.status?.type;
     const isLive = status?.state === 'in';
     const isFinal = status?.completed;
-    const statusText = isLive ? `Q${game.status?.period} ${game.status?.displayClock || ''}` : isFinal ? 'FINAL' : 'UPCOMING';
+    const awayScore = parseInt(away.score || 0);
+    const homeScore = parseInt(home.score || 0);
+    const diff = Math.abs(awayScore - homeScore);
     const awayClass = awayScore > homeScore ? 'win' : awayScore < homeScore ? 'loss' : '';
     const homeClass = homeScore > awayScore ? 'win' : homeScore < awayScore ? 'loss' : '';
-    const closeClass = diff <= 5 && (isLive || isFinal) ? 'close' : '';
-    if (idx > 0) html += '<div class="ticker-divider"></div>';
-    html += `<div class="ticker-item">
-      <div class="ticker-teams">${away.team?.abbreviation || '?'} @ ${home.team?.abbreviation || '?'}</div>
-      ${(isLive || isFinal) ? `<div class="ticker-score ${closeClass || awayClass}">${awayScore}</div><div class="ticker-score" style="color:var(--gray-muted)">-</div><div class="ticker-score ${closeClass || homeClass}">${homeScore}</div>` : ''}
-      <div class="ticker-status ${isLive?'live':''}">${isLive?'<span class="status-dot"></span>':''}${statusText}</div>
-    </div>`;
-  });
-  return html;
-}
+    const isClose = diff <= 5 && (isLive || isFinal);
 
-async function renderTicker() {
-  const cacheStaleMs = 60000;
-  const scroll = document.getElementById('ticker-scroll');
-  // Use existing in-memory cache; only fetch if stale
-  let data = scoreboardCache;
-  if (!data || (Date.now() - scoreboardTs) >= cacheStaleMs) {
-    data = await getScoreboard();
-  }
-  const inner = buildTickerHTML(data);
-  scroll.innerHTML = `<div class="ticker-track">${inner}</div>`;
+    const gameTime = new Date(game.date);
+    const timeDisplay = gameTime.toLocaleTimeString('en-US', {
+      hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'America/New_York'
+    }) + ' ET';
+
+    if (idx > 0) {
+      const div = document.createElement('div');
+      div.className = 'ticker-divider';
+      scroll.appendChild(div);
+    }
+
+    const item = document.createElement('div');
+    item.className = 'ticker-item';
+    item.innerHTML = `
+      <div class="ticker-teams">${away.team?.abbreviation || '?'} @ ${home.team?.abbreviation || '?'}</div>
+      ${isLive ? `
+        <div class="ticker-score ${isClose ? 'close' : awayClass}">${awayScore}</div>
+        <div class="ticker-score" style="color:var(--gray-muted)">-</div>
+        <div class="ticker-score ${isClose ? 'close' : homeClass}">${homeScore}</div>
+        <div class="ticker-status live"><span class="status-dot"></span>Q${game.status?.period} ${game.status?.displayClock || ''}</div>
+      ` : isFinal ? `
+        <div class="ticker-score">${awayScore}</div>
+        <div class="ticker-score" style="color:var(--gray-muted)">-</div>
+        <div class="ticker-score">${homeScore}</div>
+        <div class="ticker-status">FINAL</div>
+      ` : `
+        <div class="ticker-status" style="color:var(--gold-accent);">${timeDisplay}</div>
+      `}
+    `;
+    scroll.appendChild(item);
+  });
 }
 
 // ---- RENDER LIVE GAMES ----

@@ -1436,20 +1436,18 @@ html, body {
 
 .modal-inner {
   min-height: 100%;
-  padding: calc(var(--safe-top) + 64px) 0 calc(var(--safe-bottom) + 70px);
+  padding: 0 0 calc(var(--safe-bottom) + 16px);
 }
 
 .modal-header {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px;
+  padding: calc(var(--safe-top) + 16px) 16px 16px;
   border-bottom: 1px solid var(--gray-muted);
   background: var(--black-carbon);
-  position: fixed;
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
   z-index: 600;
 }
 
@@ -1914,12 +1912,6 @@ html, body {
   .modal-inner {
     max-width: 600px;
     margin: 0 auto;
-    padding-top: 16px;
-  }
-  .modal-header {
-    max-width: 600px;
-    left: 50%;
-    transform: translateX(-50%);
   }
 }
 

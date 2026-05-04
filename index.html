@@ -4314,12 +4314,29 @@ async function renderMatchTab() {
 
   const today = new Date();
   const dm = calcDateMath(today);
-  const todayReduction = dm.basicReduction;
+  const todayReduction = dm.fullReduction;
 
   reductionEl.textContent = `REDUCTION: ${todayReduction}`;
 
-  // Jersey ladder display
-  ladderEl.innerHTML = `<div class="board-ladder-label">TODAY'S JERSEY LADDER</div><div class="board-ladder">${dm.ladder.map(n => `<div class="ladder-num">${n}</div>`).join('')}</div>`;
+  // Full date reduction breakdown display
+  const fullDigits = `${dm.y}${String(dm.m).padStart(2,'0')}${String(dm.d).padStart(2,'0')}`.split('').map(Number);
+  const fullSum1 = fullDigits.reduce((a,b) => a+b, 0);
+  const fullLadder = buildLadder(dm.fullReduction);
+  // Build reduction chain string (e.g. 19 → 10 → 1)
+  let chainNums = [fullSum1];
+  let cur = fullSum1;
+  while (cur > 9) { cur = String(cur).split('').reduce((a,b)=>a+parseInt(b),0); chainNums.push(cur); }
+  const chainStr = chainNums.join(' → ');
+
+  ladderEl.innerHTML = `
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:12px;margin-bottom:8px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:2px;color:var(--gray-silver);text-transform:uppercase;margin-bottom:6px;">FULL DATE REDUCTION</div>
+      <div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--gray-silver);margin-bottom:4px;">${fullDigits.join(' + ')} = ${chainStr}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:16px;letter-spacing:2px;color:var(--red-ritual);margin-bottom:10px;">TODAY'S NUMBER: ${dm.fullReduction}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:2px;color:var(--gray-silver);text-transform:uppercase;margin-bottom:6px;">JERSEY LADDER</div>
+      <div class="board-ladder">${fullLadder.map(n => `<div class="ladder-num">${n}</div>`).join('')}</div>
+    </div>
+  `;
 
   const [athletes, scoreboard] = await Promise.all([getAthletes(), getScoreboard()]);
   const games = scoreboard?.events || [];

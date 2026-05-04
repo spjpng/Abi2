@@ -229,8 +229,9 @@ html, body {
   border-radius: 6px;
   max-height: 300px;
   overflow-y: auto;
-  z-index: 200;
+  z-index: 9999;
   display: none;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.8);
 }
 
 .search-results.open { display: block; }
@@ -336,14 +337,27 @@ html, body {
   display: flex;
   align-items: center;
   height: 100%;
-  padding: 0 16px;
-  overflow-x: auto;
-  gap: 24px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.ticker-scroll::-webkit-scrollbar { display: none; }
+.ticker-track {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 24px;
+  white-space: nowrap;
+  padding: 0 16px;
+  animation: marquee 40s linear infinite;
+  will-change: transform;
+}
+
+@keyframes marquee {
+  0%   { transform: translateX(100vw); }
+  100% { transform: translateX(-100%); }
+}
 
 .ticker-item {
   display: flex;
@@ -1739,6 +1753,19 @@ html, body {
   text-transform: uppercase;
 }
 
+/* FIX 1 — PLAYER MODAL SOLID BACKGROUND */
+#player-modal .modal-inner {
+  background: var(--black-carbon);
+}
+#player-modal .player-card-header,
+#player-modal .player-decode,
+#player-modal .player-stats-row,
+#player-modal .decode-section,
+#player-modal .board-cell,
+#player-modal .gem-cell {
+  background-color: var(--black-carbon);
+}
+
 /* SIDEBAR LOGO — desktop only */
 #sidebar-logo {
   display: none;
@@ -1898,19 +1925,13 @@ html, body {
   #header { max-width: none; }
 }
 
-/* Fix search dropdown not clipping — must overflow visible */
+/* FIX 2 — Search dropdown must escape parent overflow */
 .search-container {
   overflow: visible !important;
 }
-
 .search-wrap {
   overflow: visible !important;
   position: relative;
-}
-
-.search-results {
-  z-index: 9999 !important;
-  overflow: visible;
 }
 
 /* LIGHT THEME */
@@ -1932,6 +1953,63 @@ body.perf-mode * {
 
 /* SECTION SPACER */
 .section-spacer { height: 8px; }
+
+/* DAILY BRIEFING */
+.briefing-card {
+  background: linear-gradient(135deg, #0f0f0f 0%, #1a0a0a 100%);
+  border: 1px solid var(--red-ritual);
+  border-radius: 8px;
+  margin: 12px 16px;
+  overflow: hidden;
+}
+.briefing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(204,0,0,0.3);
+  cursor: pointer;
+}
+.briefing-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: 14px;
+  letter-spacing: 3px;
+  color: var(--red-ritual);
+  text-transform: uppercase;
+}
+.briefing-toggle-btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  color: var(--red-ritual);
+  cursor: pointer;
+  letter-spacing: 1px;
+}
+.briefing-body { padding: 12px 16px 16px; }
+.briefing-section { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(204,0,0,0.2); }
+.briefing-section:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+.briefing-section-title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--gray-silver);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.briefing-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.briefing-row:last-child { border-bottom: none; }
+.briefing-key { color: var(--gray-silver); }
+.briefing-val { color: var(--white-soft); text-align: right; max-width: 60%; }
+.briefing-val.red { color: var(--red-ritual); font-weight: bold; }
+.briefing-val.gold { color: var(--gold-accent); }
 
 /* NO EDGE CARD */
 .no-edge-card {
@@ -2004,6 +2082,10 @@ body.perf-mode * {
 
     <!-- HOME TAB -->
     <div class="tab-pane active" id="tab-home">
+
+      <!-- DAILY BRIEFING -->
+      <div id="daily-briefing-container"></div>
+
       <!-- SEARCH -->
       <div class="search-container">
         <div class="search-wrap">
@@ -2080,6 +2162,17 @@ body.perf-mode * {
         <div class="section-action" id="refresh-live-btn">REFRESH</div>
       </div>
       <div id="live-games-container">
+        <div class="loading-state"><div class="loading-spinner"></div><div class="loading-text">LOADING GAMES</div></div>
+      </div>
+    </div>
+
+    <!-- TEAMS TAB -->
+    <div class="tab-pane" id="tab-teams">
+      <div class="section-header" style="padding-top:16px">
+        <div class="section-title">TEAMS &amp; ROSTERS</div>
+        <div class="section-action" id="refresh-teams-btn">REFRESH</div>
+      </div>
+      <div id="teams-container">
         <div class="loading-state"><div class="loading-spinner"></div><div class="loading-text">LOADING GAMES</div></div>
       </div>
     </div>
@@ -2164,6 +2257,18 @@ body.perf-mode * {
           <span class="fav-empty-icon">∞</span>
           <div class="fav-empty-text">NO FAVORITES YET<br>TAP ★ ON ANY PLAYER</div>
         </div>
+      </div>
+    </div>
+
+    <!-- MATCH TAB -->
+    <div class="tab-pane" id="tab-match">
+      <div class="section-header" style="padding-top:16px">
+        <div class="section-title">MATCH PLAYERS</div>
+        <div class="section-action" id="match-reduction-display" style="color:var(--red-ritual);font-family:'Share Tech Mono',monospace;font-size:13px;">REDUCTION: —</div>
+      </div>
+      <div id="match-ladder-container" style="padding:0 16px 8px;"></div>
+      <div id="match-container">
+        <div class="loading-state"><div class="loading-spinner"></div><div class="loading-text">CALCULATING</div></div>
       </div>
     </div>
 
@@ -2288,6 +2393,10 @@ body.perf-mode * {
         <div class="nav-icon" style="font-size:14px;">&#x25CF;</div>
         <div class="nav-label">LIVE</div>
       </div>
+      <div class="nav-tab" onclick="switchTab('teams', this)">
+        <div class="nav-icon" style="font-size:14px;">&#x229E;</div>
+        <div class="nav-label">TEAMS</div>
+      </div>
       <div class="nav-tab" onclick="switchTab('scanner', this)">
         <div class="nav-icon">#</div>
         <div class="nav-label">SCANNER</div>
@@ -2296,9 +2405,9 @@ body.perf-mode * {
         <div class="nav-icon" style="font-size:14px;">&#x25A2;</div>
         <div class="nav-label">ARCHIVE</div>
       </div>
-      <div class="nav-tab" onclick="switchTab('favorites', this)">
-        <div class="nav-icon" style="font-size:14px;">&#x2605;</div>
-        <div class="nav-label">FAVS</div>
+      <div class="nav-tab" onclick="switchTab('match', this)">
+        <div class="nav-icon">#</div>
+        <div class="nav-label">MATCH</div>
       </div>
       <div class="nav-tab" onclick="switchTab('settings', this)">
         <div class="nav-icon" style="font-size:14px;">&#x2699;</div>
@@ -2505,6 +2614,8 @@ function switchTab(tab, el) {
   if (tab === 'archive') renderArchive('yesterday');
   if (tab === 'favorites') renderFavorites();
   if (tab === 'live') renderLiveGames();
+  if (tab === 'teams') renderTeamsTab();
+  if (tab === 'match') renderMatchTab();
 }
 
 // ---- ESPN API ----
@@ -2747,7 +2858,9 @@ const SACRED_GAPS = new Set([7,11,18,22,27,33,40,44,54,56,69,73,76,84,88,101,112
 
 function calcBirthdayGap(birthdayStr, refDate) {
   if (!birthdayStr) return null;
-  const bParts = birthdayStr.split('T')[0].split('-');
+  // Strip ESPN T00:00:00 suffix before parsing
+  const cleanBday = birthdayStr.replace(/T\d{2}:\d{2}:\d{2}.*$/, '');
+  const bParts = cleanBday.split('-');
   const ref = refDate || new Date();
   const today = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
   const birthRaw = new Date(parseInt(bParts[0]), parseInt(bParts[1])-1, parseInt(bParts[2]));
@@ -2884,21 +2997,16 @@ function renderMasterBoard() {
 }
 
 // ---- RENDER TICKER ----
-async function renderTicker() {
-  const data = await getScoreboard();
-  const scroll = document.getElementById('ticker-scroll');
-  const placeholder = document.getElementById('ticker-placeholder');
+// FIX 4: Renders from cache every 5s; only re-fetches if cache > 60s old
+function buildTickerHTML(data) {
   const games = data?.events || [];
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-
   const todayGames = games.filter(g => g.date && g.date.startsWith(todayStr));
-
   if (todayGames.length === 0) {
-    scroll.innerHTML = '<div class="ticker-no-games">NO GAMES TODAY — ARCHIVE MODE</div>';
-    return;
+    return '<div class="ticker-no-games">NO GAMES TODAY — ARCHIVE MODE</div>';
   }
-  scroll.innerHTML = '';
+  let html = '';
   todayGames.forEach((game, idx) => {
     const comp = game.competitions?.[0];
     if (!comp) return;
@@ -2914,22 +3022,26 @@ async function renderTicker() {
     const awayClass = awayScore > homeScore ? 'win' : awayScore < homeScore ? 'loss' : '';
     const homeClass = homeScore > awayScore ? 'win' : homeScore < awayScore ? 'loss' : '';
     const closeClass = diff <= 5 && (isLive || isFinal) ? 'close' : '';
-    if (idx > 0) {
-      const div = document.createElement('div');
-      div.className = 'ticker-divider';
-      scroll.appendChild(div);
-    }
-    const item = document.createElement('div');
-    item.className = 'ticker-item';
-    item.dataset.gameId = game.id;
-    item.innerHTML = `
+    if (idx > 0) html += '<div class="ticker-divider"></div>';
+    html += `<div class="ticker-item">
       <div class="ticker-teams">${away.team?.abbreviation || '?'} @ ${home.team?.abbreviation || '?'}</div>
       ${(isLive || isFinal) ? `<div class="ticker-score ${closeClass || awayClass}">${awayScore}</div><div class="ticker-score" style="color:var(--gray-muted)">-</div><div class="ticker-score ${closeClass || homeClass}">${homeScore}</div>` : ''}
       <div class="ticker-status ${isLive?'live':''}">${isLive?'<span class="status-dot"></span>':''}${statusText}</div>
-    `;
-    item.onclick = () => { switchTab('live', document.querySelectorAll('.nav-tab')[1]); };
-    scroll.appendChild(item);
+    </div>`;
   });
+  return html;
+}
+
+async function renderTicker() {
+  const cacheStaleMs = 60000;
+  const scroll = document.getElementById('ticker-scroll');
+  // Use existing in-memory cache; only fetch if stale
+  let data = scoreboardCache;
+  if (!data || (Date.now() - scoreboardTs) >= cacheStaleMs) {
+    data = await getScoreboard();
+  }
+  const inner = buildTickerHTML(data);
+  scroll.innerHTML = `<div class="ticker-track">${inner}</div>`;
 }
 
 // ---- RENDER LIVE GAMES ----
@@ -3262,10 +3374,14 @@ async function renderPlayerContent(athlete, container) {
     </div>
   `;
 
-  // PROP ANALYZER BUTTON
+  // PROP ANALYZER BUTTON + SHOW ODDS BUTTON
   html += `
     <div class="decode-section">
       <button class="analyze-btn" onclick="openPropForPlayer('${athlete.id}')">ANALYZE PROP</button>
+    </div>
+    <div class="decode-section">
+      <button class="analyze-btn" style="background:var(--black-card);border:1px solid var(--gray-muted);color:var(--white-soft);" onclick="showOddsForPlayer('${athlete.id}', ${athlete.teamId})">SHOW ODDS</button>
+      <div id="odds-result-${athlete.id}" style="margin-top:10px;"></div>
     </div>
   `;
 
@@ -3670,13 +3786,16 @@ async function runPropAnalysis() {
 
   if (SACRED_NUMBERS.has(gem[settings.defaultCipher])) { ritualScore += 15; signals.push('NAME GEMATRIA — SACRED HIT'); }
 
-  // Determine side
+  // Confirm non-null before scoring
+  console.log('[PROP] bg:', bg, '| jd:', jd, '| gem:', gem);
+
+  // Determine side — FIX 3 thresholds
   let bestSide, sideClass, classification, risk;
   const confidence = Math.min(Math.max(Math.abs(ritualScore) + 40, 20), 95);
 
-  if (ritualScore >= 40) {
-    bestSide = 'UNDER'; sideClass = ''; classification = 'CODED TO FALL'; risk = ritualScore >= 60 ? 'LOW' : 'MEDIUM';
-  } else if (ritualScore <= -20) {
+  if (ritualScore >= 30) {
+    bestSide = 'UNDER'; sideClass = ''; classification = 'CODED TO FALL'; risk = ritualScore >= 50 ? 'LOW' : 'MEDIUM';
+  } else if (ritualScore >= 10) {
     bestSide = 'OVER'; sideClass = 'over'; classification = 'CODED TO ASCEND'; risk = 'MEDIUM';
   } else {
     bestSide = 'NO EDGE'; sideClass = 'no-edge'; classification = 'NEUTRAL'; risk = 'HIGH';
@@ -3715,16 +3834,490 @@ async function runPropAnalysis() {
   `;
 }
 
-// ---- AUTO REFRESH ----
+// ---- ODDS API (FEATURE) ----
+async function showOddsForPlayer(athleteId, teamId) {
+  const oddsEl = document.getElementById(`odds-result-${athleteId}`);
+  if (!oddsEl) return;
+  oddsEl.innerHTML = '<div class="loading-state" style="padding:12px 0;"><div class="loading-spinner"></div><div class="loading-text">LOADING ODDS</div></div>';
+
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
+  const cacheKey = `abi_odds_${teamId}_${dateStr}`;
+  const cachedOdds = cacheGet(cacheKey);
+
+  let oddsData = cachedOdds;
+  if (!oddsData) {
+    try {
+      const resp = await fetch(`/api/odds?markets=h2h,spreads,totals`);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      oddsData = await resp.json();
+      cacheSet(cacheKey, oddsData);
+    } catch(e) {
+      oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">GAME ODDS</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val">ODDS UNAVAILABLE</span></div></div>`;
+      return;
+    }
+  }
+
+  // Find game for this team
+  const teamInfo = TEAM_ID_MAP[teamId];
+  const teamName = teamInfo?.name?.toLowerCase() || '';
+  const teamAbbr = teamInfo?.abbr?.toLowerCase() || '';
+
+  const gameOdds = Array.isArray(oddsData) ? oddsData.find(g => {
+    const hl = (g.home_team || '').toLowerCase();
+    const al = (g.away_team || '').toLowerCase();
+    return hl.includes(teamAbbr) || al.includes(teamAbbr) ||
+           hl.includes(teamName.split(' ').pop()) || al.includes(teamName.split(' ').pop());
+  }) : null;
+
+  if (!gameOdds) {
+    oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">GAME ODDS</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val">ODDS UNAVAILABLE</span></div></div>`;
+    return;
+  }
+
+  // Extract h2h, spread, total from first bookmaker
+  const bookmaker = gameOdds.bookmakers?.[0];
+  let ml = '—', spread = '—', total = '—';
+  if (bookmaker) {
+    bookmaker.markets?.forEach(mkt => {
+      if (mkt.key === 'h2h') {
+        const home = mkt.outcomes?.find(o => o.name?.toLowerCase() === (gameOdds.home_team||'').toLowerCase());
+        const away = mkt.outcomes?.find(o => o.name?.toLowerCase() === (gameOdds.away_team||'').toLowerCase());
+        ml = `${away?.price > 0?'+':''}${away?.price ?? '—'} / ${home?.price > 0?'+':''}${home?.price ?? '—'}`;
+      }
+      if (mkt.key === 'spreads') {
+        const home = mkt.outcomes?.find(o => o.name?.toLowerCase() === (gameOdds.home_team||'').toLowerCase());
+        const away = mkt.outcomes?.find(o => o.name?.toLowerCase() === (gameOdds.away_team||'').toLowerCase());
+        spread = `${away?.point > 0?'+':''}${away?.point ?? '—'} / ${home?.point > 0?'+':''}${home?.point ?? '—'}`;
+      }
+      if (mkt.key === 'totals') {
+        const over = mkt.outcomes?.find(o => o.name === 'Over');
+        total = over?.point ?? '—';
+      }
+    });
+  }
+
+  const awayAbbr = (gameOdds.away_team || '').split(' ').pop().toUpperCase();
+  const homeAbbr = (gameOdds.home_team || '').split(' ').pop().toUpperCase();
+
+  oddsEl.innerHTML = `
+    <div class="decode-section">
+      <div class="decode-title">GAME ODDS — ${awayAbbr} @ ${homeAbbr}</div>
+      <div class="decode-row"><span class="decode-key">MONEYLINE (A/H)</span><span class="decode-val">${ml}</span></div>
+      <div class="decode-row"><span class="decode-key">SPREAD (A/H)</span><span class="decode-val">${spread}</span></div>
+      <div class="decode-row"><span class="decode-key">TOTAL</span><span class="decode-val">${total}</span></div>
+      <div class="decode-row"><span class="decode-key">SOURCE</span><span class="decode-val" style="color:var(--gray-muted);font-size:10px;">${bookmaker?.title || 'UNKNOWN'}</span></div>
+    </div>
+  `;
+}
+
+// ---- DAILY BRIEFING ----
+const KEY_FIGURES = [
+  { name: 'POPE FRANCIS', birthday: '1936-12-17' },
+  { name: 'SUPERIOR GENERAL', birthday: '1965-05-19' },
+];
+
+function getCompositeRank(n) {
+  // composites: non-primes > 1
+  const comps = [];
+  for (let i = 2; i <= 366; i++) {
+    if (!PRIMES.has(i)) comps.push(i);
+  }
+  const idx = comps.indexOf(n);
+  return idx >= 0 ? { rank: idx + 1, total: comps.length } : null;
+}
+
+function ordinalSuffix(n) {
+  const s = ['th','st','nd','rd'];
+  const v = n % 100;
+  return n + (s[(v-20)%10] || s[v] || s[0]);
+}
+
+function isTriangularNum(n) { return TRIANGULARS.has(n); }
+
+function renderDailyBriefing() {
+  const container = document.getElementById('daily-briefing-container');
+  if (!container) return;
+
+  const today = new Date();
+  const dm = calcDateMath(today);
+  const isDesktop = window.innerWidth >= 600;
+
+  // --- PRIMARY NUMBERS ---
+  const doy = dm.dayOfYear;
+  const compRank = getCompositeRank(doy);
+  const compText = compRank ? `${ordinalSuffix(compRank.rank)} COMPOSITE` : 'NOT COMPOSITE';
+  const monthNum = dm.m;
+  const dayNum = dm.d;
+  const primeMonth = PRIMES.has(monthNum) ? `PRIME #${[...PRIMES].sort((a,b)=>a-b).indexOf(monthNum)+1}` : null;
+
+  // --- DATE NUMEROLOGY ---
+  const fullDigits = `${dm.y}${String(dm.m).padStart(2,'0')}${String(dm.d).padStart(2,'0')}`.split('').map(Number);
+  const fullSum1 = fullDigits.reduce((a,b)=>a+b,0);
+  const fullSum2 = reduceToSingle(fullSum1);
+  const lesserSum1 = dm.m + dm.d;
+  const lesserSum2 = reduceToSingle(lesserSum1);
+  const fullLadder = buildLadder(fullSum2);
+  const multiples = [1,2,3,4,5,6].map(x => fullSum2 * x);
+
+  // --- DAY OF WEEK DECODE ---
+  const dayName = dm.weekdayName.toUpperCase();
+  const planetName = dm.planet.toUpperCase();
+  const dayGem = calcGematria(dayName);
+  const planetGem = calcGematria(planetName);
+
+  function gemLine(gem, label) {
+    const keys = ['english_ordinal','full_reduction','reverse_ordinal','reverse_reduction','septenary','francis_bacon','jewish','higgins'];
+    return keys.map(k => {
+      const v = gem[k];
+      const isMatch = reduceToSingle(v) === dm.basicReduction || v === dm.basicReduction;
+      return `<span style="${isMatch?'color:var(--red-ritual);font-weight:bold;':''}">${v}</span>`;
+    }).join(' / ');
+  }
+
+  // --- KEY FIGURE GAPS ---
+  let figureRows = '';
+  KEY_FIGURES.forEach(fig => {
+    const bg = calcBirthdayGap(fig.birthday, today);
+    if (!bg) return;
+    const isSinceSacred = SACRED_GAPS.has(bg.daysSince);
+    const isUntilSacred = SACRED_GAPS.has(bg.daysUntil);
+    const sinceTriangle = isTriangularNum(bg.daysSince) ? ' △' : '';
+    const untilTriangle = isTriangularNum(bg.daysUntil) ? ' △' : '';
+    const sinceWeeks = bg.daysSince % 7 === 0 ? ` (${bg.daysSince/7}W)` : '';
+    const untilWeeks = bg.daysUntil % 7 === 0 ? ` (${bg.daysUntil/7}W)` : '';
+    figureRows += `
+      <div class="briefing-row">
+        <span class="briefing-key">${fig.name} — SINCE</span>
+        <span class="briefing-val ${isSinceSacred?'red':''}">${bg.daysSince}D${sinceWeeks}${sinceTriangle}${isSinceSacred?' SACRED':''}</span>
+      </div>
+      <div class="briefing-row">
+        <span class="briefing-key">${fig.name} — UNTIL</span>
+        <span class="briefing-val ${isUntilSacred?'red':''}">${bg.daysUntil}D${untilWeeks}${untilTriangle}${isUntilSacred?' SACRED':''}</span>
+      </div>
+    `;
+  });
+
+  const dateStr = today.toLocaleDateString('en-US',{month:'numeric',day:'numeric',year:'numeric'});
+  const dmStr = `${dm.d}/${dm.m}`;
+
+  const bodyHTML = `
+    <div class="briefing-body" id="briefing-body">
+      <div class="briefing-section">
+        <div class="briefing-section-title">PRIMARY NUMBERS</div>
+        <div class="briefing-row"><span class="briefing-key">DAY OF YEAR</span><span class="briefing-val red">${doy}</span></div>
+        <div class="briefing-row"><span class="briefing-key">COMPOSITE RANK</span><span class="briefing-val">${compText}</span></div>
+        <div class="briefing-row"><span class="briefing-key">DAYS REMAINING</span><span class="briefing-val gold">${dm.daysRemaining}</span></div>
+        <div class="briefing-row"><span class="briefing-key">DATE M/D</span><span class="briefing-val">${dm.m}/${dm.d}</span></div>
+        <div class="briefing-row"><span class="briefing-key">DATE D/M</span><span class="briefing-val">${dmStr}</span></div>
+        <div class="briefing-row"><span class="briefing-key">DAY OF MONTH</span><span class="briefing-val">${dm.d}</span></div>
+        ${primeMonth ? `<div class="briefing-row"><span class="briefing-key">MONTH (${monthNum})</span><span class="briefing-val red">${primeMonth}</span></div>` : ''}
+      </div>
+
+      <div class="briefing-section">
+        <div class="briefing-section-title">DATE NUMEROLOGY</div>
+        <div class="briefing-row"><span class="briefing-key">FULL SUM</span><span class="briefing-val">${fullSum1} → <span style="color:var(--red-ritual)">${fullSum2}</span></span></div>
+        <div class="briefing-row"><span class="briefing-key">LESSER (M+D)</span><span class="briefing-val">${lesserSum1} → <span style="color:var(--red-ritual)">${lesserSum2}</span></span></div>
+        <div class="briefing-row"><span class="briefing-key">MULTIPLES x1-x6</span><span class="briefing-val">${multiples.join(' · ')}</span></div>
+        <div class="briefing-row"><span class="briefing-key">JERSEY LADDER</span><span class="briefing-val">${fullLadder.join(' · ')}</span></div>
+      </div>
+
+      <div class="briefing-section">
+        <div class="briefing-section-title">DAY OF WEEK DECODE</div>
+        <div class="briefing-row"><span class="briefing-key">${dayName}</span><span class="briefing-val">${gemLine(dayGem)}</span></div>
+        <div class="briefing-row"><span class="briefing-key">${planetName}</span><span class="briefing-val">${gemLine(planetGem)}</span></div>
+        <div style="font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gray-muted);padding-top:4px;">EO / FR / RO / RR / SEP / FB / JEW / HIG</div>
+      </div>
+
+      <div class="briefing-section">
+        <div class="briefing-section-title">KEY FIGURE GAPS</div>
+        ${figureRows || '<div class="briefing-row"><span class="briefing-key">—</span><span class="briefing-val">NO DATA</span></div>'}
+      </div>
+    </div>
+  `;
+
+  container.innerHTML = `
+    <div class="briefing-card">
+      <div class="briefing-header" onclick="toggleBriefing()">
+        <div>
+          <div class="briefing-title">DAILY BRIEFING</div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--gray-silver);margin-top:2px;">${dateStr.toUpperCase()}</div>
+        </div>
+        <div class="briefing-toggle-btn" id="briefing-toggle-label">${isDesktop ? 'COLLAPSE' : 'EXPAND'}</div>
+      </div>
+      ${bodyHTML}
+    </div>
+  `;
+
+  // Collapsed by default on mobile
+  if (!isDesktop) {
+    const body = document.getElementById('briefing-body');
+    if (body) body.style.display = 'none';
+  }
+}
+
+function toggleBriefing() {
+  const body = document.getElementById('briefing-body');
+  const label = document.getElementById('briefing-toggle-label');
+  if (!body) return;
+  const isHidden = body.style.display === 'none';
+  body.style.display = isHidden ? '' : 'none';
+  if (label) label.textContent = isHidden ? 'COLLAPSE' : 'EXPAND';
+}
+
+// ---- MATCH TAB ----
+async function renderMatchTab() {
+  const container = document.getElementById('match-container');
+  const ladderEl = document.getElementById('match-ladder-container');
+  const reductionEl = document.getElementById('match-reduction-display');
+  if (!container) return;
+  container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><div class="loading-text">CALCULATING</div></div>';
+
+  const today = new Date();
+  const dm = calcDateMath(today);
+  const todayReduction = dm.basicReduction;
+
+  reductionEl.textContent = `REDUCTION: ${todayReduction}`;
+
+  // Jersey ladder display
+  ladderEl.innerHTML = `<div class="board-ladder-label">TODAY'S JERSEY LADDER</div><div class="board-ladder">${dm.ladder.map(n => `<div class="ladder-num">${n}</div>`).join('')}</div>`;
+
+  const [athletes, scoreboard] = await Promise.all([getAthletes(), getScoreboard()]);
+  const games = scoreboard?.events || [];
+
+  // Build set of teamIds playing today
+  const todayTeamIds = new Set();
+  games.forEach(g => {
+    const comp = g.competitions?.[0];
+    if (!comp) return;
+    (comp.competitors || []).forEach(c => {
+      if (c.team?.id) todayTeamIds.add(String(c.team.id));
+    });
+  });
+
+  // Build map of teamId → opponent abbr
+  const teamOpponent = {};
+  games.forEach(g => {
+    const comp = g.competitions?.[0];
+    if (!comp) return;
+    const [away, home] = comp.competitors || [];
+    if (!away || !home) return;
+    teamOpponent[String(away.team?.id)] = home.team?.abbreviation || '?';
+    teamOpponent[String(home.team?.id)] = away.team?.abbreviation || '?';
+  });
+
+  // Filter athletes: team has game today AND jersey reduces to todayReduction
+  const matched = athletes.filter(a => {
+    const j = parseInt(a.jersey);
+    if (isNaN(j)) return false;
+    if (!todayTeamIds.has(String(a.teamId))) return false;
+    return reduceToSingle(j) === todayReduction;
+  });
+
+  // Score each
+  const scored = matched.map(a => {
+    let score = 0;
+    const jd = decodeJersey(a.jersey);
+    const bg = a.birthday ? calcBirthdayGap(a.birthday, today) : null;
+    const gem = calcGematria(a.name);
+    if (jd && jd.final === dm.basicReduction) score += 30;
+    if (jd && dm.ladder.includes(parseInt(a.jersey))) score += 20;
+    if (SACRED_GAPS.has(parseInt(a.jersey))) score += 10;
+    if (bg) {
+      if (bg.sacredSince || bg.sacredUntil) score += 25;
+      if (bg.bdaySum === dm.basicReduction) score += 20;
+      if (bg.daysSince <= 3 || bg.daysUntil <= 3) score += 15;
+    }
+    if (SACRED_NUMBERS.has(gem[settings.defaultCipher])) score += 15;
+    if (reduceToSingle(gem[settings.defaultCipher]) === dm.basicReduction) score += 10;
+    return { ...a, score };
+  }).sort((a, b) => b.score - a.score);
+
+  container.innerHTML = '';
+
+  if (scored.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-text">NO MATCHES TODAY</div></div>';
+    return;
+  }
+
+  scored.forEach(a => {
+    const opp = teamOpponent[String(a.teamId)] || '?';
+    const badge = a.score >= 60 ? 'CODED TO ASCEND' : 'MATCH';
+    const badgeClass = a.score >= 60 ? 'label-red' : 'label-gold';
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cursor = 'pointer';
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:900;font-size:18px;color:var(--white-soft);">${a.name}</div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gray-silver);">${a.teamAbbr} vs ${opp} &bull; ${a.position}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:32px;color:var(--red-ritual);line-height:1;">${a.jersey}</div>
+          <div class="label ${badgeClass}">${badge}</div>
+        </div>
+      </div>
+      <div style="margin-top:6px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gray-silver);">ALIGN SCORE: ${a.score}</div>
+    `;
+    card.onclick = () => openPlayerModal(a);
+    container.appendChild(card);
+  });
+}
+
+// ---- TEAMS TAB (FIX 5) ----
+const ROSTER_TTL = 6 * 3600 * 1000;
+
+async function fetchRoster(teamId) {
+  const cacheKey = `abi_roster_${teamId}`;
+  const tsKey = `abi_roster_ts_${teamId}`;
+  const cached = cacheGet(cacheKey);
+  if (cached && cacheAge(tsKey) < ROSTER_TTL) return cached;
+  try {
+    const data = await apiFetch(`${ESPN1}/teams/${teamId}/roster`);
+    const players = [];
+    const teamInfo = TEAM_ID_MAP[teamId] || { id: teamId, abbr: '?', name: '?' };
+    const athletesData = data?.athletes || [];
+    athletesData.forEach(groupOrPlayer => {
+      if (groupOrPlayer.items && Array.isArray(groupOrPlayer.items)) {
+        groupOrPlayer.items.forEach(a => {
+          const p = parseAthleteFromESPN(a, teamId, teamInfo);
+          if (p) players.push(p);
+        });
+      } else if (groupOrPlayer.id) {
+        const p = parseAthleteFromESPN(groupOrPlayer, teamId, teamInfo);
+        if (p) players.push(p);
+      }
+    });
+    if (players.length > 0) {
+      cacheSet(cacheKey, players);
+      localStorage.setItem(tsKey, Date.now());
+    }
+    return players;
+  } catch(e) {
+    return cacheGet(cacheKey) || [];
+  }
+}
+
+// State: which side is showing per game
+const teamsTabState = {};
+
+async function renderTeamsTab() {
+  const container = document.getElementById('teams-container');
+  if (!container) return;
+  container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><div class="loading-text">LOADING GAMES</div></div>';
+  const data = await getScoreboard();
+  const games = data?.events || [];
+  if (games.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-text">NO GAMES TODAY — CHECK ARCHIVE</div></div>';
+    return;
+  }
+  container.innerHTML = '';
+  games.forEach(game => {
+    const comp = game.competitions?.[0];
+    if (!comp) return;
+    const [away, home] = comp.competitors || [];
+    if (!away || !home) return;
+    const awayScore = parseInt(away.score || 0);
+    const homeScore = parseInt(home.score || 0);
+    const status = game.status?.type;
+    const isLive = status?.state === 'in';
+    const isFinal = status?.completed;
+    const qText = isLive ? `Q${game.status?.period} ${game.status?.displayClock || ''}` : isFinal ? 'FINAL' : status?.shortDetail || 'TIP';
+
+    const awayId = away.team?.id;
+    const homeId = home.team?.id;
+    const awayAbbr = away.team?.abbreviation || '?';
+    const homeAbbr = home.team?.abbreviation || '?';
+    const gameId = game.id;
+    if (!teamsTabState[gameId]) teamsTabState[gameId] = 'away';
+
+    const card = document.createElement('div');
+    card.className = 'live-game-card';
+    card.style.marginBottom = '16px';
+    card.innerHTML = `
+      <div class="live-game-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="live-badge">${isLive?'<span class="status-dot"></span>LIVE':'GAME'}</div>
+          <div class="live-quarter">${qText}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="font-family:'Share Tech Mono',monospace;font-size:18px;color:var(--white-soft);">${awayScore}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--gray-muted);">VS</div>
+          <div style="font-family:'Share Tech Mono',monospace;font-size:18px;color:var(--white-soft);">${homeScore}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:0;border-bottom:1px solid var(--gray-muted);">
+        <button class="segment-btn team-toggle-btn ${teamsTabState[gameId]==='away'?'active':''}"
+          onclick="teamsTabToggle('${gameId}','away','${awayId}','${homeId}','${awayAbbr}','${homeAbbr}',this)"
+          style="flex:1;min-height:38px;">${awayAbbr} AWAY</button>
+        <button class="segment-btn team-toggle-btn ${teamsTabState[gameId]==='home'?'active':''}"
+          onclick="teamsTabToggle('${gameId}','home','${awayId}','${homeId}','${awayAbbr}','${homeAbbr}',this)"
+          style="flex:1;min-height:38px;">${homeAbbr} HOME</button>
+      </div>
+      <div id="roster-${gameId}" style="padding:8px 0;">
+        <div class="loading-state" style="padding:16px;"><div class="loading-spinner"></div></div>
+      </div>
+    `;
+    container.appendChild(card);
+
+    // Load initial roster
+    const initialTeamId = teamsTabState[gameId] === 'away' ? awayId : homeId;
+    if (initialTeamId) loadRosterInto(gameId, initialTeamId);
+  });
+
+  document.getElementById('refresh-teams-btn').onclick = async () => {
+    scoreboardCache = null;
+    renderTeamsTab();
+  };
+}
+
+async function teamsTabToggle(gameId, side, awayId, homeId, awayAbbr, homeAbbr, btn) {
+  teamsTabState[gameId] = side;
+  const card = btn.closest('.live-game-card');
+  card.querySelectorAll('.team-toggle-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const teamId = side === 'away' ? awayId : homeId;
+  loadRosterInto(gameId, teamId);
+}
+
+async function loadRosterInto(gameId, teamId) {
+  const el = document.getElementById(`roster-${gameId}`);
+  if (!el) return;
+  el.innerHTML = '<div class="loading-state" style="padding:16px;"><div class="loading-spinner"></div></div>';
+  const players = await fetchRoster(parseInt(teamId));
+  if (!players || players.length === 0) {
+    el.innerHTML = '<div class="empty-state" style="padding:16px;"><div class="empty-state-text">NO ROSTER DATA</div></div>';
+    return;
+  }
+  el.innerHTML = '';
+  players.forEach(a => {
+    el.appendChild(makePlayerRow(a, `#${a.jersey}`));
+  });
+}
+
+// ---- AUTO REFRESH (FIX 4 + FIX 6) ----
 let autoRefreshInterval = null;
+let tickerInterval = null;
 
 function startAutoRefresh() {
+  // Clear existing
   if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  if (tickerInterval) clearInterval(tickerInterval);
+
+  // Ticker re-renders every 5s from cache; fetches fresh only if cache > 60s
+  tickerInterval = setInterval(() => {
+    renderTicker();
+  }, 5000);
+
   if (settings.autoRefresh !== 'on') return;
+
+  // Live games refresh every 60s — never triggers odds or props
   autoRefreshInterval = setInterval(async () => {
-    scoreboardCache = null; // force refresh
-    await renderTicker();
+    await getScoreboard(); // refresh scoreboard cache
+    renderTicker();
     if (currentTab === 'live') renderLiveGames();
+    if (currentTab === 'teams') renderTeamsTab();
   }, 60000);
 }
 
@@ -3732,6 +4325,7 @@ function startAutoRefresh() {
 async function init() {
   applySettings();
   renderMasterBoard();
+  renderDailyBriefing();
 
   // Parallel fetch
   const [scoreboard] = await Promise.allSettled([

@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   calls.push(now);
   rateLimitMap.set(ip, calls);
 
-  const { market, eventId } = req.query;
+  const { markets, eventId } = req.query;
   const base = eventId
     ? `https://api.the-odds-api.com/v4/sports/basketball_nba/events/${eventId}/odds`
     : `https://api.the-odds-api.com/v4/sports/basketball_nba/odds`;
@@ -22,7 +22,7 @@ export default async function handler(req, res) {
   const params = new URLSearchParams({
     apiKey: process.env.ODDS_API_KEY,
     regions: 'us',
-    markets: market || 'h2h,spreads,totals',
+    markets: markets || 'h2h,spreads,totals',
     oddsFormat: 'american'
   });
 

@@ -60,7 +60,7 @@ html, body {
   overflow-y: auto;
   overflow-x: clip; /* clip not hidden — allows position:absolute children to escape */
   -webkit-overflow-scrolling: touch;
-  padding-bottom: max(70px, calc(46px + var(--safe-bottom)));
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 8px));
   padding-top: calc(var(--safe-top) + 56px + 38px); /* header + ticker height */
   scroll-behavior: smooth;
 }
@@ -90,7 +90,7 @@ html, body {
   z-index: 100;
   background: var(--black-carbon);
   border-top: 1px solid var(--gray-muted);
-  padding-bottom: max(8px, calc(var(--safe-bottom) - 16px));
+  padding-bottom: env(safe-area-inset-bottom, 8px);
 }
 
 .header-inner {

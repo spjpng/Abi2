@@ -90,7 +90,7 @@ html, body {
   z-index: 100;
   background: var(--black-carbon);
   border-top: 1px solid var(--gray-muted);
-  padding-bottom: var(--safe-bottom);
+  padding-bottom: calc(var(--safe-bottom) - 8px);
 }
 
 .header-inner {
@@ -138,7 +138,7 @@ html, body {
 .nav-inner {
   display: flex;
   align-items: center;
-  height: 56px;
+  height: 60px;
 }
 
 .nav-tab {
@@ -147,7 +147,7 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 5px;
   height: 100%;
   cursor: pointer;
   min-width: 48px;
@@ -169,8 +169,8 @@ html, body {
 
 .nav-label {
   font-family: 'Barlow Condensed', sans-serif;
-  font-size: 9px;
-  letter-spacing: 1.5px;
+  font-size: 10px;
+  letter-spacing: 1px;
   font-weight: 600;
   color: var(--gray-silver);
   text-transform: uppercase;
@@ -1436,7 +1436,7 @@ html, body {
 
 .modal-inner {
   min-height: 100%;
-  padding: calc(var(--safe-top) + 12px) 0 calc(var(--safe-bottom) + 70px);
+  padding: calc(var(--safe-top) + 64px) 0 calc(var(--safe-bottom) + 70px);
 }
 
 .modal-header {
@@ -1446,9 +1446,11 @@ html, body {
   padding: 16px;
   border-bottom: 1px solid var(--gray-muted);
   background: var(--black-carbon);
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 10;
+  left: 0;
+  right: 0;
+  z-index: 600;
 }
 
 .modal-back {
@@ -1751,6 +1753,7 @@ html, body {
 /* FIX 1 — PLAYER MODAL SOLID BACKGROUND */
 #player-modal .modal-inner {
   background: var(--black-carbon);
+  padding-bottom: calc(var(--safe-bottom) + 16px);
 }
 #player-modal .player-card-header,
 #player-modal .player-decode,
@@ -1912,6 +1915,11 @@ html, body {
     max-width: 600px;
     margin: 0 auto;
     padding-top: 16px;
+  }
+  .modal-header {
+    max-width: 600px;
+    left: 50%;
+    transform: translateX(-50%);
   }
 }
 
@@ -3211,9 +3219,7 @@ async function renderTicker() {
   const scroll = document.getElementById('ticker-scroll');
   scroll.innerHTML = '';
 
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  const todayGames = (data?.events || []).filter(g => g.date && g.date.startsWith(todayStr));
+  const todayGames = data?.events || [];
 
   if (todayGames.length === 0) {
     scroll.innerHTML = `
@@ -3229,6 +3235,7 @@ async function renderTicker() {
     return;
   }
 
+  scroll.classList.add('has-games');
   todayGames.forEach((game, idx) => {
     const comp = game.competitions?.[0];
     if (!comp) return;
@@ -3626,7 +3633,7 @@ async function renderPlayerContent(athlete, container) {
       <button class="analyze-btn" onclick="openPropForPlayer('${athlete.id}')">ANALYZE PROP</button>
     </div>
     <div class="decode-section">
-      <button class="analyze-btn" style="background:var(--black-card);border:1px solid var(--gray-muted);color:var(--white-soft);" onclick="showOddsForPlayer('${athlete.id}', ${athlete.teamId})">SHOW ODDS</button>
+      <button class="analyze-btn" style="background:var(--black-card);border:1px solid var(--gray-muted);color:var(--white-soft);" onclick="showOddsForPlayer('${athlete.id}', ${athlete.teamId}, '${(athlete.name||'').replace(/'/g,"\\'")}' )">SHOW ODDS</button>
       <div id="odds-result-${athlete.id}" style="margin-top:10px;"></div>
     </div>
   `;
@@ -4099,99 +4106,175 @@ async function runPropAnalysis() {
 }
 
 // ---- ODDS API (FEATURE) ----
-async function showOddsForPlayer(athleteId, teamId) {
+const ALL_PROP_MARKETS = [
+  'player_points','player_rebounds','player_assists','player_threes',
+  'player_blocks','player_steals','player_turnovers',
+  'player_points_rebounds_assists','player_points_rebounds',
+  'player_points_assists','player_rebounds_assists',
+  'player_double_double','player_triple_double',
+  'player_first_basket','player_last_basket','player_first_team_basket'
+].join(',');
+
+async function showOddsForPlayer(athleteId, teamId, playerName) {
   const oddsEl = document.getElementById(`odds-result-${athleteId}`);
   if (!oddsEl) return;
+  if (!playerName) {
+    const cached = athletesCache.find(a => String(a.id) === String(athleteId));
+    playerName = cached?.name || '';
+  }
   oddsEl.innerHTML = '<div class="loading-state" style="padding:12px 0;"><div class="loading-spinner"></div><div class="loading-text">LOADING ODDS</div></div>';
 
   const today = new Date();
   const dm = calcDateMath(today);
   const dateStr = `${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}`;
-  const cacheKey = `abi_odds_${teamId}_${dateStr}`;
-  const cachedOdds = cacheGet(cacheKey);
 
-  let oddsData = cachedOdds;
-  if (!oddsData) {
+  // Phase 1: get game list to find eventId (30-min cache)
+  const gamesKey = `abi_odds_games_${dateStr}`;
+  const gamesTsKey = `${gamesKey}_ts`;
+  let gamesData = null;
+  if (Date.now() - parseInt(localStorage.getItem(gamesTsKey) || '0') < 30 * 60 * 1000) {
+    gamesData = cacheGet(gamesKey);
+  }
+  if (!gamesData) {
     try {
-      const resp = await fetch(`/api/odds?markets=h2h,spreads,totals`);
+      const resp = await fetch('/api/odds?markets=h2h');
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      oddsData = await resp.json();
-      cacheSet(cacheKey, oddsData);
+      gamesData = await resp.json();
+      cacheSet(gamesKey, gamesData);
+      localStorage.setItem(gamesTsKey, String(Date.now()));
     } catch(e) {
-      oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">GAME ODDS</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val">ODDS UNAVAILABLE</span></div></div>`;
+      oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val">ODDS UNAVAILABLE</span></div></div>`;
       return;
     }
   }
 
-  // Find game for this team
   const teamInfo = TEAM_ID_MAP[teamId];
   const teamName = teamInfo?.name?.toLowerCase() || '';
   const teamAbbr = teamInfo?.abbr?.toLowerCase() || '';
-
-  const gameOdds = Array.isArray(oddsData) ? oddsData.find(g => {
+  const gameEntry = Array.isArray(gamesData) ? gamesData.find(g => {
     const hl = (g.home_team || '').toLowerCase();
     const al = (g.away_team || '').toLowerCase();
     return hl.includes(teamAbbr) || al.includes(teamAbbr) ||
            hl.includes(teamName.split(' ').pop()) || al.includes(teamName.split(' ').pop());
   }) : null;
 
-  if (!gameOdds) {
-    oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">GAME ODDS</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val">ODDS UNAVAILABLE</span></div></div>`;
+  if (!gameEntry) {
+    oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val">NO GAME FOUND</span></div></div>`;
     return;
   }
 
-  // Extract h2h, spread, total from first bookmaker
-  const bookmaker = gameOdds.bookmakers?.[0];
-  let ml = '—', spread = '—', total = '—';
-  let spreadNum = null, totalNum = null;
-  if (bookmaker) {
-    bookmaker.markets?.forEach(mkt => {
-      if (mkt.key === 'h2h') {
-        const home = mkt.outcomes?.find(o => o.name?.toLowerCase() === (gameOdds.home_team||'').toLowerCase());
-        const away = mkt.outcomes?.find(o => o.name?.toLowerCase() === (gameOdds.away_team||'').toLowerCase());
-        ml = `${away?.price > 0?'+':''}${away?.price ?? '—'} / ${home?.price > 0?'+':''}${home?.price ?? '—'}`;
-      }
-      if (mkt.key === 'spreads') {
-        const home = mkt.outcomes?.find(o => o.name?.toLowerCase() === (gameOdds.home_team||'').toLowerCase());
-        const away = mkt.outcomes?.find(o => o.name?.toLowerCase() === (gameOdds.away_team||'').toLowerCase());
-        spread = `${away?.point > 0?'+':''}${away?.point ?? '—'} / ${home?.point > 0?'+':''}${home?.point ?? '—'}`;
-        spreadNum = away?.point ?? null;
-      }
-      if (mkt.key === 'totals') {
-        const over = mkt.outcomes?.find(o => o.name === 'Over');
-        total = over?.point ?? '—';
-        totalNum = over?.point ?? null;
-      }
-    });
+  const eventId = gameEntry.id;
+  const awayAbbr = (gameEntry.away_team || '').split(' ').pop().toUpperCase();
+  const homeAbbr = (gameEntry.home_team || '').split(' ').pop().toUpperCase();
+
+  // Phase 2: get player props for this event (30-min cache per event)
+  const propsKey = `abi_odds_props_${eventId}_${dateStr}`;
+  const propsTsKey = `${propsKey}_ts`;
+  let propsData = null;
+  if (Date.now() - parseInt(localStorage.getItem(propsTsKey) || '0') < 30 * 60 * 1000) {
+    propsData = cacheGet(propsKey);
+  }
+  if (!propsData) {
+    try {
+      const resp = await fetch(`/api/odds?eventId=${encodeURIComponent(eventId)}&markets=${ALL_PROP_MARKETS}`);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      propsData = await resp.json();
+      cacheSet(propsKey, propsData);
+      localStorage.setItem(propsTsKey, String(Date.now()));
+    } catch(e) {
+      oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val">PROPS UNAVAILABLE</span></div></div>`;
+      return;
+    }
   }
 
-  const awayAbbr = (gameOdds.away_team || '').split(' ').pop().toUpperCase();
-  const homeAbbr = (gameOdds.home_team || '').split(' ').pop().toUpperCase();
+  const eventObj = Array.isArray(propsData) ? propsData[0] : propsData;
+  const bookmakers = eventObj?.bookmakers || [];
 
-  const spreadDecode = spreadNum != null ? (() => {
-    const absSpread = Math.abs(parseFloat(spreadNum));
-    const spreadRed = reduceToSingle(Math.floor(absSpread));
-    const spreadHit = spreadRed === dm.basicReduction;
-    return `${spread} → ${spreadRed}${spreadHit ? ' = TODAY' : ''}`;
-  })() : spread;
-  const spreadHit = spreadNum != null && reduceToSingle(Math.floor(Math.abs(parseFloat(spreadNum)))) === dm.basicReduction;
+  if (bookmakers.length === 0) {
+    oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS — ${awayAbbr} @ ${homeAbbr}</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val" style="color:var(--gray-silver);">NO PROPS AVAILABLE</span></div></div>`;
+    return;
+  }
 
-  const totalDecode = totalNum != null ? (() => {
-    const totalRed = reduceToSingle(Math.floor(parseFloat(totalNum)));
-    const totalHit = totalRed === dm.basicReduction;
-    return `${total} → ${totalRed}${totalHit ? ' = TODAY' : ''}`;
-  })() : total;
-  const totalHit = totalNum != null && reduceToSingle(Math.floor(parseFloat(totalNum))) === dm.basicReduction;
+  const bookNames = bookmakers.map(b => b.title || b.key);
+  const preferred = localStorage.getItem('settings_preferred_book');
+  const activeBook = bookNames.includes(preferred) ? preferred : bookNames[0];
+
+  function renderOddsContent(selectedBook) {
+    const book = bookmakers.find(b => (b.title || b.key) === selectedBook);
+    if (!book) return `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gray-silver);padding:8px 0;">NO PROPS AVAILABLE FOR ${selectedBook.toUpperCase()}</div>`;
+    const playerNameLower = (playerName || '').toLowerCase().trim();
+    const playerMarkets = [];
+    (book.markets || []).forEach(mkt => {
+      const hits = (mkt.outcomes || []).filter(o => {
+        const n = (o.description || o.name || '').toLowerCase();
+        return n === playerNameLower || (playerNameLower && n.includes(playerNameLower));
+      });
+      if (hits.length > 0) playerMarkets.push({ key: mkt.key, outcomes: hits });
+    });
+    if (playerMarkets.length === 0) {
+      return `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gray-silver);padding:8px 0;">NO PROPS AVAILABLE FOR ${selectedBook.toUpperCase()}</div>`;
+    }
+    const mktLabel = k => k.replace(/^player_/, '').replace(/_/g, ' ').toUpperCase();
+    let html = '';
+    playerMarkets.forEach(mkt => {
+      const over = mkt.outcomes.find(o => o.name === 'Over');
+      const under = mkt.outcomes.find(o => o.name === 'Under');
+      const yes = mkt.outcomes.find(o => o.name === 'Yes');
+      const no = mkt.outcomes.find(o => o.name === 'No');
+      const line = over?.point ?? under?.point ?? null;
+      const lineRed = line != null ? reduceToSingle(Math.floor(Math.abs(parseFloat(line)))) : null;
+      const isHit = lineRed != null && lineRed === dm.fullReduction;
+      html += `<div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.06);">`;
+      html += `<div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:2px;color:var(--gray-silver);font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:6px;">`;
+      if (isHit) html += `<span style="width:6px;height:6px;border-radius:50%;background:var(--red-ritual);display:inline-block;flex-shrink:0;"></span>`;
+      html += `${mktLabel(mkt.key)}</div>`;
+      if (line != null && over && under) {
+        const op = (over.price > 0 ? '+' : '') + over.price;
+        const up = (under.price > 0 ? '+' : '') + under.price;
+        html += `<div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--white-soft);">${line} <span style="color:var(--gray-muted);">→</span> <span style="${isHit ? 'color:var(--red-ritual);' : 'color:var(--gray-silver);'}">R${lineRed}</span>&nbsp;&nbsp;<span style="color:var(--gray-muted);">OVER</span> ${op}&nbsp;&nbsp;<span style="color:var(--gray-muted);">UNDER</span> ${up}</div>`;
+      } else if (yes) {
+        const yp = (yes.price > 0 ? '+' : '') + yes.price;
+        const noStr = no ? `&nbsp;&nbsp;<span style="color:var(--gray-muted);">NO</span> ${(no.price > 0 ? '+' : '') + no.price}` : '';
+        html += `<div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--white-soft);"><span style="color:var(--gray-muted);">YES</span> ${yp}${noStr}</div>`;
+      } else {
+        const fallback = mkt.outcomes.map(o => `<span style="color:var(--gray-muted);">${(o.name||'').toUpperCase()}</span> ${(o.price > 0?'+':'') + o.price}`).join('&nbsp;&nbsp;');
+        html += `<div style="font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--white-soft);">${fallback}</div>`;
+      }
+      html += `</div>`;
+    });
+    return html;
+  }
+
+  const pillsHtml = bookNames.map(b => {
+    const isActive = b === activeBook;
+    return `<button onclick="selectOddsBook('${athleteId}','${b.replace(/'/g,"\\'")}',this)" style="font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:1.5px;font-weight:700;padding:5px 12px;border-radius:20px;border:1px solid ${isActive ? 'var(--red-ritual)' : 'var(--gray-muted)'};background:${isActive ? 'rgba(204,0,0,0.15)' : 'transparent'};color:${isActive ? 'var(--red-ritual)' : 'var(--gray-silver)'};cursor:pointer;white-space:nowrap;">${b.toUpperCase()}</button>`;
+  }).join('');
 
   oddsEl.innerHTML = `
     <div class="decode-section">
-      <div class="decode-title">GAME ODDS DECODE — ${awayAbbr} @ ${homeAbbr}</div>
-      <div class="decode-row"><span class="decode-key">SPREAD</span><span class="decode-val ${spreadHit ? 'hit' : ''}">${spreadDecode}</span></div>
-      <div class="decode-row"><span class="decode-key">TOTAL</span><span class="decode-val ${totalHit ? 'hit' : ''}">${totalDecode}</span></div>
-      <div class="decode-row"><span class="decode-key">MONEYLINE</span><span class="decode-val">${ml}</span></div>
-      <div class="decode-row"><span class="decode-key">SOURCE</span><span class="decode-val" style="color:var(--gray-muted);font-size:10px;">${bookmaker?.title || 'UNKNOWN'}</span></div>
+      <div class="decode-title">PLAYER PROPS — ${awayAbbr} @ ${homeAbbr}</div>
+      <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:2px;-webkit-overflow-scrolling:touch;scrollbar-width:none;" id="odds-pills-${athleteId}">${pillsHtml}</div>
+      <div id="odds-markets-${athleteId}">${renderOddsContent(activeBook)}</div>
     </div>
   `;
+  oddsEl._renderFn = renderOddsContent;
+}
+
+function selectOddsBook(athleteId, bookName, btn) {
+  localStorage.setItem('settings_preferred_book', bookName);
+  const oddsEl = document.getElementById(`odds-result-${athleteId}`);
+  if (!oddsEl || !oddsEl._renderFn) return;
+  const pillsEl = document.getElementById(`odds-pills-${athleteId}`);
+  if (pillsEl) {
+    pillsEl.querySelectorAll('button').forEach(b => {
+      const isActive = b.textContent.trim() === bookName.toUpperCase();
+      b.style.borderColor = isActive ? 'var(--red-ritual)' : 'var(--gray-muted)';
+      b.style.color = isActive ? 'var(--red-ritual)' : 'var(--gray-silver)';
+      b.style.background = isActive ? 'rgba(204,0,0,0.15)' : 'transparent';
+    });
+  }
+  const marketsEl = document.getElementById(`odds-markets-${athleteId}`);
+  if (marketsEl) marketsEl.innerHTML = oddsEl._renderFn(bookName);
 }
 
 // ---- DAILY BRIEFING ----

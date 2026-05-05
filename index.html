@@ -4207,8 +4207,11 @@ async function showOddsForPlayer(athleteId, teamId, playerName) {
         throw new Error(errBody.error || errBody.message || 'HTTP ' + resp.status);
       }
       propsData = await resp.json();
-      cacheSet(propsKey, propsData);
-      localStorage.setItem(propsTsKey, String(Date.now()));
+      const _bk = Array.isArray(propsData) ? propsData[0]?.bookmakers : propsData?.bookmakers;
+      if (_bk && _bk.length > 0) {
+        cacheSet(propsKey, propsData);
+        localStorage.setItem(propsTsKey, String(Date.now()));
+      }
     } catch(e) {
       oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS — ${awayAbbr} @ ${homeAbbr}</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val" style="color:var(--red-ritual);">PROPS UNAVAILABLE</span></div><div class="decode-row"><span class="decode-key">ERROR</span><span class="decode-val" style="color:var(--gray-silver);font-size:11px;">${escHtml(e.message)}</span></div></div>`;
       return;
@@ -4220,7 +4223,22 @@ async function showOddsForPlayer(athleteId, teamId, playerName) {
 
   if (bookmakers.length === 0) {
     const preferredBook = localStorage.getItem('settings_preferred_book') || SPORTSBOOK_OPTIONS[0];
-    oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS — ${awayAbbr} @ ${homeAbbr}</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val" style="color:var(--gray-silver);">NO PROPS AVAILABLE</span></div><div class="decode-row"><span class="decode-key">SOURCE</span><span class="decode-val" style="color:var(--gray-muted);">${preferredBook.toUpperCase()}</span></div></div>`;
+    const sbEvents = scoreboardCache?.events || [];
+    const sbGame = sbEvents.find(e =>
+      (e.competitions?.[0]?.competitors || []).some(c => String(c.team?.id) === String(teamId))
+    );
+    const gameState = sbGame?.status?.type?.state || 'pre';
+    const statusNote = gameState === 'post' ? 'GAME FINAL — PROPS CLOSED'
+                     : gameState === 'in'   ? 'GAME IN PROGRESS — PROPS MAY BE CLOSED'
+                     : 'NO PROPS AVAILABLE FROM THIS SOURCE';
+    oddsEl.innerHTML = `
+      <div class="decode-section">
+        <div class="decode-title">PLAYER PROPS — ${awayAbbr} @ ${homeAbbr}</div>
+        <div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val" style="color:var(--gray-silver);">${statusNote}</span></div>
+        <div class="decode-row"><span class="decode-key">SOURCE</span><span class="decode-val" style="color:var(--gray-muted);">${escHtml(preferredBook.toUpperCase())}</span></div>
+        <button onclick="(function(){localStorage.removeItem('abi_odds_props_${eventId}_${dateStr}');localStorage.removeItem('abi_odds_props_${eventId}_${dateStr}_ts');showOddsForPlayer('${athleteId}',${teamId},'${(playerName||'').replace(/'/g,"\\'").replace(/\\/g,'\\\\')}')})()" style="margin-top:10px;font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:2px;font-weight:700;padding:8px 20px;border:1px solid var(--gray-muted);background:transparent;color:var(--gray-silver);border-radius:4px;cursor:pointer;width:100%;">RETRY</button>
+      </div>
+    `;
     return;
   }
 
@@ -4232,11 +4250,14 @@ async function showOddsForPlayer(athleteId, teamId, playerName) {
     const book = bookmakers.find(b => (b.title || b.key) === selectedBook);
     if (!book) return `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gray-silver);padding:8px 0;">NO PROPS AVAILABLE FOR ${selectedBook.toUpperCase()}</div>`;
     const playerNameLower = (playerName || '').toLowerCase().trim();
+    const playerLastName = playerNameLower.split(' ').pop();
     const playerMarkets = [];
     (book.markets || []).forEach(mkt => {
       const hits = (mkt.outcomes || []).filter(o => {
         const n = (o.description || o.name || '').toLowerCase();
-        return n === playerNameLower || (playerNameLower && n.includes(playerNameLower));
+        return n === playerNameLower
+          || n.includes(playerNameLower)
+          || (playerLastName.length > 3 && n.includes(playerLastName));
       });
       if (hits.length > 0) playerMarkets.push({ key: mkt.key, outcomes: hits });
     });

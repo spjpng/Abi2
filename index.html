@@ -2844,8 +2844,11 @@ const FIBONACCI = [1,2,3,5,8,13,21,34,55,89,144,233,377];
 const PRIMES = new Set([2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,193,197,199,211,223,227,229,233,239,241,251,257,263,269,271,277,281,283,293,307,311,313,317,331,337,347,349,353,359,367]);
 const TRIANGULARS = new Set([1,3,6,10,15,21,28,36,45,55,66,78,91,105,120,136,153,171,190,210,231,253,276,300,325,351]);
 
+const _dateMathCache = {};
 function calcDateMath(date) {
   const y = date.getFullYear(), m = date.getMonth()+1, d = date.getDate();
+  const key = `${y}${m}${d}`;
+  if (_dateMathCache[key]) return _dateMathCache[key];
   const start = new Date(y, 0, 0);
   const diff = date - start;
   const dayOfYear = Math.floor(diff / 86400000);
@@ -2860,7 +2863,9 @@ function calcDateMath(date) {
   const isPrime = PRIMES.has(dayOfYear);
   const isTri = TRIANGULARS.has(dayOfYear);
   const ladder = buildLadder(basicReduction);
-  return { dayOfYear, daysRemaining, isLeap: isLeapYear(y), fullReduction, basicReduction, weekday, weekdayName: WEEKDAYS[weekday], planet, nearFib, isPrime, isTri, ladder, y, m, d };
+  const result = { dayOfYear, daysRemaining, isLeap: isLeapYear(y), fullReduction, basicReduction, weekday, weekdayName: WEEKDAYS[weekday], planet, nearFib, isPrime, isTri, ladder, y, m, d };
+  _dateMathCache[key] = result;
+  return result;
 }
 
 function isLeapYear(y) { return (y%4===0 && y%100!==0) || y%400===0; }
@@ -2976,15 +2981,6 @@ function calcSacredAlignment(athlete) {
   const today = new Date();
 
   const jerseyNum = parseInt(athlete.jersey);
-  console.log('ALIGNMENT CHECK', {
-    player: athlete.name,
-    jersey: athlete.jersey,
-    jerseyReduction: isNaN(jerseyNum) ? null : reduceToSingle(jerseyNum),
-    fullReduction: dm.fullReduction,
-    basicReduction: dm.basicReduction,
-    dayOfYear: dm.dayOfYear,
-    match: !isNaN(jerseyNum) && reduceToSingle(jerseyNum) === dm.fullReduction
-  });
 
   const results = {
     jersey: { hit: false, detail: '' },
@@ -3395,36 +3391,32 @@ async function renderRitualFlags() {
   }
   const today = new Date();
   const dm = calcDateMath(today);
-  // Score each player
+  // Score each player — compute jd/bg/gem once and carry forward
   const scored = athletes.map(a => {
     let score = 0;
     const jersey = parseInt(a.jersey);
-    if (!isNaN(jersey)) {
-      const jd = decodeJersey(a.jersey);
-      if (jd && jd.final === dm.basicReduction) score += 30;
-      if (jd && dm.ladder.includes(jersey)) score += 20;
+    const jd = !isNaN(jersey) ? decodeJersey(a.jersey) : null;
+    if (jd) {
+      if (jd.final === dm.basicReduction) score += 30;
+      if (dm.ladder.includes(jersey)) score += 20;
       if (SACRED_GAPS.has(jersey)) score += 10;
     }
-    if (a.birthday) {
-      const bg = calcBirthdayGap(a.birthday, today);
-      if (bg) {
-        if (bg.sacredSince || bg.sacredUntil) score += 25;
-        if (bg.bdaySum === dm.basicReduction) score += 20;
-        if (bg.daysSince <= 3 || bg.daysUntil <= 3) score += 15;
-      }
+    const bg = a.birthday ? calcBirthdayGap(a.birthday, today) : null;
+    if (bg) {
+      if (bg.sacredSince || bg.sacredUntil) score += 25;
+      if (bg.bdaySum === dm.basicReduction) score += 20;
+      if (bg.daysSince <= 3 || bg.daysUntil <= 3) score += 15;
     }
     const gem = calcGematria(a.name);
     const defaultVal = gem[settings.defaultCipher];
     if (SACRED_NUMBERS.has(defaultVal)) score += 15;
     if (reduceToSingle(defaultVal) === dm.basicReduction) score += 10;
-    return { ...a, score };
+    return { ...a, score, jd, bg, gem };
   }).sort((a,b)=>b.score-a.score).slice(0,5);
 
   container.innerHTML = '';
   scored.forEach(a => {
-    const jd = decodeJersey(a.jersey);
-    const bg = a.birthday ? calcBirthdayGap(a.birthday, today) : null;
-    const gem = calcGematria(a.name);
+    const { jd, bg, gem } = a;
     const classification = a.score >= 60 ? 'CODED TO ASCEND' : a.score >= 40 ? 'SYMBOLIC ASCENSION' : 'WATCH CLOSELY';
     const labelClass = a.score >= 60 ? 'label-red' : a.score >= 40 ? 'label-gold' : 'label-gray';
     const card = document.createElement('div');
@@ -4141,6 +4133,10 @@ const ALL_PROP_MARKETS = [
   'player_first_basket','player_last_basket','player_first_team_basket'
 ].join(',');
 
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 async function showOddsForPlayer(athleteId, teamId, playerName) {
   const oddsEl = document.getElementById(`odds-result-${athleteId}`);
   if (!oddsEl) return;
@@ -4172,7 +4168,7 @@ async function showOddsForPlayer(athleteId, teamId, playerName) {
       cacheSet(gamesKey, gamesData);
       localStorage.setItem(gamesTsKey, String(Date.now()));
     } catch(e) {
-      oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val" style="color:var(--red-ritual);">ODDS UNAVAILABLE</span></div><div class="decode-row"><span class="decode-key">ERROR</span><span class="decode-val" style="color:var(--gray-silver);font-size:11px;">${e.message}</span></div></div>`;
+      oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val" style="color:var(--red-ritual);">ODDS UNAVAILABLE</span></div><div class="decode-row"><span class="decode-key">ERROR</span><span class="decode-val" style="color:var(--gray-silver);font-size:11px;">${escHtml(e.message)}</span></div></div>`;
       return;
     }
   }
@@ -4214,7 +4210,7 @@ async function showOddsForPlayer(athleteId, teamId, playerName) {
       cacheSet(propsKey, propsData);
       localStorage.setItem(propsTsKey, String(Date.now()));
     } catch(e) {
-      oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS — ${awayAbbr} @ ${homeAbbr}</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val" style="color:var(--red-ritual);">PROPS UNAVAILABLE</span></div><div class="decode-row"><span class="decode-key">ERROR</span><span class="decode-val" style="color:var(--gray-silver);font-size:11px;">${e.message}</span></div></div>`;
+      oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS — ${awayAbbr} @ ${homeAbbr}</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val" style="color:var(--red-ritual);">PROPS UNAVAILABLE</span></div><div class="decode-row"><span class="decode-key">ERROR</span><span class="decode-val" style="color:var(--gray-silver);font-size:11px;">${escHtml(e.message)}</span></div></div>`;
       return;
     }
   }

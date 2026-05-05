@@ -90,7 +90,7 @@ html, body {
   z-index: 100;
   background: var(--black-carbon);
   border-top: 1px solid var(--gray-muted);
-  padding-bottom: env(safe-area-inset-bottom, 8px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .header-inner {
@@ -137,8 +137,9 @@ html, body {
 
 .nav-inner {
   display: flex;
-  align-items: center;
-  height: 56px;
+  align-items: stretch;
+  height: auto;
+  padding-bottom: 0;
 }
 
 .nav-tab {
@@ -147,8 +148,9 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  height: 100%;
+  gap: 3px;
+  height: auto;
+  padding: 8px 0 4px;
   cursor: pointer;
   min-width: 48px;
   transition: opacity 0.15s;
@@ -162,7 +164,7 @@ html, body {
 
 .nav-icon {
   font-family: 'Share Tech Mono', monospace;
-  font-size: 18px;
+  font-size: 20px;
   color: var(--gray-silver);
   line-height: 1;
 }
@@ -170,10 +172,11 @@ html, body {
 .nav-label {
   font-family: 'Barlow Condensed', sans-serif;
   font-size: 10px;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   font-weight: 600;
   color: var(--gray-silver);
   text-transform: uppercase;
+  line-height: 1;
 }
 
 /* TABS */

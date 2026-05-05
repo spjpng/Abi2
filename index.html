@@ -2353,6 +2353,17 @@ body.perf-mode * {
         </div>
 
         <div class="settings-section">
+          <div class="settings-section-title">ODDS</div>
+          <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+            <div>
+              <div class="settings-row-label">PREFERRED SPORTSBOOK</div>
+              <div class="settings-row-sub">Source for player prop odds</div>
+            </div>
+            <div id="settings-book-pills" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+          </div>
+        </div>
+
+        <div class="settings-section">
           <div class="settings-section-title">SYSTEM</div>
           <div class="settings-row">
             <div>
@@ -2486,6 +2497,25 @@ const SETTINGS_KEYS = {
   perfMode: 'abi_perf_mode',
 };
 
+const SPORTSBOOK_OPTIONS = [
+  'DraftKings','FanDuel','BetMGM','Caesars','ESPN Bet','Bet365','Bovada','PointsBet'
+];
+
+function renderSettingsBookPills() {
+  const el = document.getElementById('settings-book-pills');
+  if (!el) return;
+  const preferred = localStorage.getItem('settings_preferred_book') || SPORTSBOOK_OPTIONS[0];
+  el.innerHTML = SPORTSBOOK_OPTIONS.map(b => {
+    const isActive = b === preferred;
+    return `<button onclick="setPreferredBook('${b}')" style="font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:1.5px;font-weight:700;padding:5px 12px;border-radius:20px;border:1px solid ${isActive ? 'var(--red-ritual)' : 'var(--gray-muted)'};background:${isActive ? 'rgba(204,0,0,0.15)' : 'transparent'};color:${isActive ? 'var(--red-ritual)' : 'var(--gray-silver)'};cursor:pointer;white-space:nowrap;">${b.toUpperCase()}</button>`;
+  }).join('');
+}
+
+function setPreferredBook(bookName) {
+  localStorage.setItem('settings_preferred_book', bookName);
+  renderSettingsBookPills();
+}
+
 let settings = {
   bgColor: localStorage.getItem(SETTINGS_KEYS.bgColor) ?? '#080808',
   theme: localStorage.getItem(SETTINGS_KEYS.theme) ?? 'dark',
@@ -2519,6 +2549,7 @@ function applySettings() {
     document.getElementById('theme-dark-btn')?.classList.remove('active');
   }
   initColorPresets();
+  renderSettingsBookPills();
 }
 
 function setTheme(t) {
@@ -4133,12 +4164,15 @@ async function showOddsForPlayer(athleteId, teamId, playerName) {
   if (!gamesData) {
     try {
       const resp = await fetch('/api/odds?markets=h2h');
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(errBody.error || errBody.message || 'HTTP ' + resp.status);
+      }
       gamesData = await resp.json();
       cacheSet(gamesKey, gamesData);
       localStorage.setItem(gamesTsKey, String(Date.now()));
     } catch(e) {
-      oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val">ODDS UNAVAILABLE</span></div></div>`;
+      oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val" style="color:var(--red-ritual);">ODDS UNAVAILABLE</span></div><div class="decode-row"><span class="decode-key">ERROR</span><span class="decode-val" style="color:var(--gray-silver);font-size:11px;">${e.message}</span></div></div>`;
       return;
     }
   }
@@ -4172,12 +4206,15 @@ async function showOddsForPlayer(athleteId, teamId, playerName) {
   if (!propsData) {
     try {
       const resp = await fetch(`/api/odds?eventId=${encodeURIComponent(eventId)}&markets=${ALL_PROP_MARKETS}`);
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      if (!resp.ok) {
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(errBody.error || errBody.message || 'HTTP ' + resp.status);
+      }
       propsData = await resp.json();
       cacheSet(propsKey, propsData);
       localStorage.setItem(propsTsKey, String(Date.now()));
     } catch(e) {
-      oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val">PROPS UNAVAILABLE</span></div></div>`;
+      oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS — ${awayAbbr} @ ${homeAbbr}</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val" style="color:var(--red-ritual);">PROPS UNAVAILABLE</span></div><div class="decode-row"><span class="decode-key">ERROR</span><span class="decode-val" style="color:var(--gray-silver);font-size:11px;">${e.message}</span></div></div>`;
       return;
     }
   }
@@ -4186,7 +4223,8 @@ async function showOddsForPlayer(athleteId, teamId, playerName) {
   const bookmakers = eventObj?.bookmakers || [];
 
   if (bookmakers.length === 0) {
-    oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS — ${awayAbbr} @ ${homeAbbr}</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val" style="color:var(--gray-silver);">NO PROPS AVAILABLE</span></div></div>`;
+    const preferredBook = localStorage.getItem('settings_preferred_book') || SPORTSBOOK_OPTIONS[0];
+    oddsEl.innerHTML = `<div class="decode-section"><div class="decode-title">PLAYER PROPS — ${awayAbbr} @ ${homeAbbr}</div><div class="decode-row"><span class="decode-key">STATUS</span><span class="decode-val" style="color:var(--gray-silver);">NO PROPS AVAILABLE</span></div><div class="decode-row"><span class="decode-key">SOURCE</span><span class="decode-val" style="color:var(--gray-muted);">${preferredBook.toUpperCase()}</span></div></div>`;
     return;
   }
 
@@ -4257,6 +4295,7 @@ async function showOddsForPlayer(athleteId, teamId, playerName) {
 
 function selectOddsBook(athleteId, bookName, btn) {
   localStorage.setItem('settings_preferred_book', bookName);
+  renderSettingsBookPills();
   const oddsEl = document.getElementById(`odds-result-${athleteId}`);
   if (!oddsEl || !oddsEl._renderFn) return;
   const pillsEl = document.getElementById(`odds-pills-${athleteId}`);

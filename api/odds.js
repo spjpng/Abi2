@@ -1,6 +1,10 @@
 const rateLimitMap = new Map();
 
 export default async function handler(req, res) {
+  if (!process.env.ODDS_API_KEY) {
+    return res.status(500).json({ error: 'ODDS_API_KEY not configured' });
+  }
+
   const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   const now = Date.now();
   const windowMs = 60 * 60 * 1000;
@@ -26,7 +30,15 @@ export default async function handler(req, res) {
     oddsFormat: 'american'
   });
 
-  const data = await fetch(`${base}?${params}`).then(r => r.json());
-  res.setHeader('Cache-Control', 's-maxage=300');
-  res.json(data);
+  try {
+    const upstreamRes = await fetch(`${base}?${params}`);
+    const data = await upstreamRes.json();
+    if (!upstreamRes.ok) {
+      return res.status(upstreamRes.status).json(data);
+    }
+    res.setHeader('Cache-Control', 's-maxage=300');
+    res.json(data);
+  } catch(e) {
+    res.status(502).json({ error: 'Failed to reach odds provider' });
+  }
 }

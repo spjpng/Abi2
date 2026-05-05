@@ -3176,6 +3176,101 @@ async function getAttendanceDecode(eventId, dm) {
   } catch(e) { return null; }
 }
 
+// ---- BOX SCORE ----
+const _boxScoreCache = {};
+
+async function getGameBoxScore(gameId) {
+  const cached = _boxScoreCache[gameId];
+  if (cached && Date.now() - cached.ts < 60000) return cached.data;
+  try {
+    const data = await apiFetch(`${ESPN1}/summary?event=${gameId}`);
+    _boxScoreCache[gameId] = { data, ts: Date.now() };
+    return data;
+  } catch(e) { return null; }
+}
+
+function openBoxScorePlayer(athleteId) {
+  const athlete = athletesCache.find(a => String(a.id) === String(athleteId));
+  if (athlete) openPlayerModal(athlete);
+}
+
+async function toggleBoxScore(gameId) {
+  const el = document.getElementById(`box-score-${gameId}`);
+  const btn = document.getElementById(`box-btn-${gameId}`);
+  if (!el) return;
+  const isOpen = el.style.display !== 'none' && el.dataset.loaded === '1';
+  if (isOpen) {
+    el.style.display = 'none';
+    if (btn) btn.textContent = 'PLAYER STATS';
+    return;
+  }
+  el.style.display = 'block';
+  if (btn) btn.textContent = 'HIDE STATS';
+  if (el.dataset.loaded !== '1') {
+    el.innerHTML = '<div style="padding:12px 14px;font-family:\'Share Tech Mono\',monospace;font-size:11px;color:var(--gray-silver);">LOADING STATS...</div>';
+  }
+  const dm = calcDateMath(new Date());
+  const summary = await getGameBoxScore(gameId);
+  const teams = summary?.boxScore?.players || [];
+  if (teams.length === 0) {
+    el.innerHTML = '<div style="padding:12px 14px;font-family:\'Share Tech Mono\',monospace;font-size:11px;color:var(--gray-silver);">NO STATS YET</div>';
+    return;
+  }
+  let html = '';
+  teams.forEach(teamData => {
+    const abbr = teamData.team?.abbreviation || '?';
+    const statBlock = teamData.statistics?.[0];
+    if (!statBlock) return;
+    const names = statBlock.names || [];
+    const ptsIdx = names.indexOf('PTS');
+    const rebIdx = names.indexOf('REB');
+    const astIdx = names.indexOf('AST');
+    const stlIdx = names.indexOf('STL');
+    const blkIdx = names.indexOf('BLK');
+    const athletes = (statBlock.athletes || []).filter(a => a.active && !a.didNotPlay);
+    if (athletes.length === 0) return;
+    html += `<div style="padding:10px 14px;border-top:1px solid var(--gray-muted);">`;
+    html += `<div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:2px;color:var(--gray-silver);font-weight:700;margin-bottom:8px;">${abbr}</div>`;
+    html += `<div style="display:grid;grid-template-columns:1fr repeat(5,32px);gap:2px;margin-bottom:4px;">`;
+    ['PLAYER','PTS','REB','AST','STL','BLK'].forEach((h,i) => {
+      html += `<div style="font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:1.5px;color:var(--gray-muted);${i>0?'text-align:center;':''}">${h}</div>`;
+    });
+    html += `</div>`;
+    athletes.forEach(a => {
+      const pts = ptsIdx >= 0 ? parseInt(a.stats?.[ptsIdx] || 0) : 0;
+      const reb = rebIdx >= 0 ? parseInt(a.stats?.[rebIdx] || 0) : 0;
+      const ast = astIdx >= 0 ? parseInt(a.stats?.[astIdx] || 0) : 0;
+      const stl = stlIdx >= 0 ? parseInt(a.stats?.[stlIdx] || 0) : 0;
+      const blk = blkIdx >= 0 ? parseInt(a.stats?.[blkIdx] || 0) : 0;
+      const ptsHit = pts > 0 && reduceToSingle(pts) === dm.fullReduction;
+      const next = pts + 1;
+      const ptsMilestone = pts > 0 && (PRIMES.has(next) || FIBONACCI_SET.has(next) || SACRED_NUMBERS.has(next) || next % 10 === 0);
+      const athleteId = a.athlete?.id;
+      const shortName = escHtml(a.athlete?.shortName || a.athlete?.displayName || '?');
+      const nameColor = ptsHit ? 'var(--red-ritual)' : 'var(--white-soft)';
+      const clickable = athletesCache.some(p => String(p.id) === String(athleteId));
+      html += `<div style="display:grid;grid-template-columns:1fr repeat(5,32px);gap:2px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);align-items:center;">`;
+      html += `<div style="display:flex;align-items:center;gap:5px;overflow:hidden;">`;
+      if (ptsHit) html += `<span style="width:5px;height:5px;border-radius:50%;background:var(--red-ritual);flex-shrink:0;display:inline-block;"></span>`;
+      else if (ptsMilestone) html += `<span style="width:5px;height:5px;border-radius:50%;background:var(--gold-accent);flex-shrink:0;display:inline-block;"></span>`;
+      html += `<span onclick="${clickable ? `openBoxScorePlayer('${athleteId}')` : ''}" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:${nameColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${clickable ? 'cursor:pointer;' : ''}">${shortName}</span>`;
+      html += `</div>`;
+      html += `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:${ptsHit ? 'var(--red-ritual)' : 'var(--white-soft)'};text-align:center;font-weight:${ptsHit?'700':'400'};">${pts > 0 ? pts : '—'}</div>`;
+      html += `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gray-silver);text-align:center;">${reb > 0 ? reb : '—'}</div>`;
+      html += `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gray-silver);text-align:center;">${ast > 0 ? ast : '—'}</div>`;
+      html += `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gray-silver);text-align:center;">${stl > 0 ? stl : '—'}</div>`;
+      html += `<div style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--gray-silver);text-align:center;">${blk > 0 ? blk : '—'}</div>`;
+      html += `</div>`;
+      if (ptsMilestone) {
+        html += `<div style="padding:2px 0 4px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gold-accent);letter-spacing:1px;">&#x25CF; ${shortName} — ${pts} PTS &rarr; NEEDS 1 MORE &rarr; ${next}</div>`;
+      }
+    });
+    html += `</div>`;
+  });
+  el.innerHTML = html || '<div style="padding:12px 14px;font-family:\'Share Tech Mono\',monospace;font-size:11px;color:var(--gray-silver);">NO STATS YET</div>';
+  el.dataset.loaded = '1';
+}
+
 const CIPHER_LABELS = {
   english_ordinal: 'ENGLISH ORDINAL',
   full_reduction: 'FULL REDUCTION',
@@ -3361,6 +3456,12 @@ async function renderLiveGames() {
         ${isFinal ? `<div style="margin-top:6px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--red-ritual);">SCORE DECODE: ${awayScore}-${homeScore} → SUM ${awayScore+homeScore} → ${reduceToSingle(awayScore+homeScore)}</div>` : ''}
         <div id="attendance-${game.id}" style="margin-top:4px;"></div>
       </div>
+      ${(isLive||isFinal) ? `
+      <div style="padding:8px 14px 12px;border-top:1px solid var(--gray-muted);">
+        <button id="box-btn-${game.id}" onclick="toggleBoxScore('${game.id}')" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:2px;font-weight:700;padding:7px 16px;border:1px solid var(--gray-muted);background:transparent;color:var(--gray-silver);border-radius:4px;cursor:pointer;width:100%;">PLAYER STATS</button>
+      </div>
+      <div id="box-score-${game.id}" style="display:none;"></div>
+      ` : ''}
     `;
     container.appendChild(card);
 
